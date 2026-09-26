@@ -4,7 +4,7 @@ from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
 # 1. 網頁基本設定 (設定為寬版，使用台灣國旗圖示)
-st.set_page_config(page_title="台灣匿名版 - 無政府自由看板", layout="wide", page_icon="🇹🇼")
+st.set_page_config(page_title="台灣匿名版 - 自由發文", layout="wide", page_icon="🇹🇼")
 
 # 核心設定：網頁每隔 5 秒 (5000毫秒) 在背景自動重整，即時同步全台最新貼文
 st_autorefresh(interval=5000, key="taiwan_board_counter")
