@@ -6,7 +6,7 @@ import os
 st.set_page_config(page_title="網站運行狀態中心", page_icon="📊", layout="centered")
 
 # ==========================================
-# 0. 全域共享狀態管理（解決 F5 與 跨電腦同步 問題）
+# 0. 全域共享狀態管理（跨電腦同步）
 # ==========================================
 class StatusManager:
     """用來在伺服器記憶體中保存狀態的類別"""
@@ -21,7 +21,7 @@ class StatusManager:
 
 @st.cache_resource
 def get_status_manager():
-    """利用 Streamlit 快取機制，讓所有使用者、所有分頁共享同一個物件執行個體"""
+    """利用 Streamlit 快取機制，讓所有使用者共享同一個物件"""
     return StatusManager()
 
 # 取得全域唯一的狀態管理器
@@ -51,20 +51,29 @@ if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
 # ==========================================
-# 3. 前台：使用者查看狀態介面
+# 3. 前台：每 5 秒自動更新的狀態展示區 (核心改動)
 # ==========================================
 st.title("🌐 網站運行狀態中心")
 st.subheader("目前服務狀態")
 
-# 從全域管理器取得當前狀態
-current_status = status_manager.get_status()
+# 使用 st.fragment 裝飾器，指定 run_every=5 讓它每 5 秒自動局部重刷
+@st.fragment(run_every=5)
+def render_status_display():
+    # 每次局部重新整理時，都重新跟伺服器拿最新的狀態
+    current_status = status_manager.get_status()
 
-if current_status == "🟢 上線":
-    st.success("### 🟢 系統正常運行中 (Online)\n目前所有服務皆可正常存取，請安心使用。")
-elif current_status == "🟡 維修中":
-    st.warning("### 🟡 系統定期維修中 (Maintenance)\n我們正在進行例行性維護以提升服務品質，預計不久後恢復，造成不便敬請見諒。")
-elif current_status == "🔴 故障":
-    st.error("### 🔴 系統突發故障 (Down)\n核心服務目前遭遇異常，技術團隊已收到通知並正全力搶修中，請稍後再試。")
+    if current_status == "🟢 上線":
+        st.success("### 🟢 系統正常運行中 (Online)\n目前所有服務皆可正常存取，請安心使用。")
+    elif current_status == "🟡 維修中":
+        st.warning("### 🟡 系統定期維修中 (Maintenance)\n我們正在進行例行性維護以提升服務品質，預計不久後恢復，造成不便敬請見諒。")
+    elif current_status == "🔴 故障":
+        st.error("### 🔴 系統突發故障 (Down)\n核心服務目前遭遇異常，技術團隊已收到通知並正全力搶修中，請稍後再試。")
+    
+    # 偷偷放個小小的提示，方便您肉眼確認它有在偷偷自動倒數（上線時可拿掉這行）
+    st.caption("🔄 狀態每 5 秒自動同步更新中...")
+
+# 執行前台狀態區
+render_status_display()
 
 st.divider()
 
@@ -101,7 +110,7 @@ else:
     
     with col1:
         if st.button("更新網站狀態", type="primary"):
-            # 將新狀態寫入全域管理器（所有人和 F5 都會同步更新）
+            # 將新狀態寫入全域管理器
             status_manager.set_status(new_status)
             st.success(f"狀態已成功更新為：{new_status}")
             st.rerun()
