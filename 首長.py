@@ -29,9 +29,9 @@ class StatusManager:
     self.current_status = new_status
     self.notice_message = notice
 
-    # 嚴格限制跑馬燈最大長度為 20 字
+    # 嚴格限制跑馬燈最大長度為 50 字
     if ticker:
-      self.ticker_text = ticker[:20]
+      self.ticker_text = ticker[:50]
     else:
       self.ticker_text = ""
 
