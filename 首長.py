@@ -31,7 +31,7 @@ filtered_df["縣市（可點選官網）"] = filtered_df.apply(lambda row: f"[{r
 display_df = filtered_df[["縣市（可點選官網）", "首長", "政黨"]]
 
 # 4. 畫面佈局
-col1, col2 = st.columns()
+col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("政黨席次比例")
