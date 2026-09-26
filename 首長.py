@@ -20,7 +20,7 @@ class StatusManager:
         self.current_status = "🟢 上線"
         self.notice_message = ""      # 管理員自訂公告
         self.ticker_text = "🎉 歡迎來到人事部勞工運行狀態中心！系統目前正常運作中。"  # 跑馬燈預設內容
-        self.last_updated = get_taiwan_time()
+        self.last_updated = get_taiwan_time()  # 修正：直接抓取當前正確台灣時間
         self.logs = []
         
         self.add_log("🟢 上線", "系統初始化")
