@@ -5,7 +5,7 @@ import pandas as pd
 st.set_page_config(page_title="台灣縣市首長資訊圖", layout="wide")
 st.title("🗺️ 全台灣縣市首長資訊圖表")
 
-# 1. 建立純粹的縣市首長資料庫（移除所有網址）
+# 1. 建立純粹的縣市首長資料庫
 data = {
     "縣市": ["臺北市", "新北市", "桃園市", "臺中市", "臺南市", "高雄市", "基隆市", "新竹市", "新竹縣", "苗栗縣", "彰化縣", "南投縣", "雲林縣", "嘉義市", "嘉義縣", "屏東縣", "宜蘭縣", "花蓮縣", "臺東縣", "澎湖縣", "金門縣", "連江縣"],
     "首長": ["蔣萬安", "侯友宜", "張善政", "盧秀燕", "黃偉哲", "陳其邁", "謝國樑", "高虹安", "楊文科", "鍾東錦", "王惠美", "許淑華", "張麗善", "黃敏惠", "翁章梁", "周春米", "林姿妙", "徐榛蔚", "饒慶鈴", "陳光復", "陳福海", "王忠銘"],
@@ -18,7 +18,7 @@ st.sidebar.header("篩選條件")
 selected_party = st.sidebar.multiselect("選擇政黨", options=df["政黨"].unique(), default=df["政黨"].unique())
 filtered_df = df[df["政黨"].isin(selected_party)]
 
-# 3. 畫面佈局（平分兩欄：左邊圓餅圖，右邊名單表格）
+# 3. 畫面佈局（左邊圓餅圖，右邊名單表格）
 col1, col2 = st.columns(2)
 
 with col1:
@@ -31,3 +31,37 @@ with col1:
 with col2:
     st.subheader("首長詳細名單")
     st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+
+
+# ==========================================
+# 4. 經典訪客留言板（跨瀏覽器共享、無額外提示）
+# ==========================================
+st.write("---")
+st.subheader("💬 訪客留言板")
+
+# 使用全域快取儲存留言，讓所有人都能看到彼此的留言
+@st.cache_resource
+def get_message_db():
+    return [{"name": "系統管理員", "text": "歡迎留言討論！"}]
+
+db = get_message_db()
+
+# 留言輸入區域
+with st.form(key="my_comment_form", clear_on_submit=True):
+    name = st.text_input("您的暱稱", max_chars=20)
+    comment = st.text_area("留言內容", max_chars=200)
+    submit = st.form_submit_button(label="送出")
+
+# 按下送出時的動作
+if submit:
+    if name.strip() != "" and comment.strip() != "":
+        # 把最新留言塞到最前面
+        db.insert(0, {"name": name.strip(), "text": comment.strip()})
+        # 強制重新整理畫面以顯示新留言
+        st.rerun()
+
+# 純粹的留言列表展示
+for item in db:
+    st.markdown(f"**👤 {item['name']}**")
+    st.caption(item['text'])
+    st.write("")
