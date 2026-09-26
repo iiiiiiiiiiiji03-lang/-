@@ -5,11 +5,11 @@ import pandas as pd
 st.set_page_config(page_title="台灣縣市首長資訊圖", layout="wide")
 st.title("🗺️ 全台灣縣市首長資訊圖表")
 
-# 1. 建立縣市首長資料庫（維持純網址）
+# 1. 建立縣市首長資料庫（網址填寫完整）
 data = {
     "縣市": ["臺北市", "新北市", "桃園市", "臺中市", "臺南市", "高雄市", "基隆市", "新竹市", "新竹縣", "苗栗縣", "彰化縣", "南投縣", "雲林縣", "嘉義市", "嘉義縣", "屏東縣", "宜蘭縣", "花蓮縣", "臺東縣", "澎湖縣", "金門縣", "連江縣"],
     "市政府官網": [
-        "https://gov.taipei", "https://ntpc.gov.tw", "https://tycg.gov.tw", "https://taichung.gov.tw", "https://tainan.gov.tw", "https://kcg.gov.tw",
+        "https://gov.taipei", "https://ntpc.gov.tw", "https://tycg.gov.tw", "https://taichung.gov.tw", "https://tainan.gov.tw", "https://www.kcg.gov.tw/",
         "https://klcg.gov.tw", "https://hccg.gov.tw", "https://hsinchu.gov.tw", "https://miaoli.gov.tw", "https://chcg.gov.tw", "https://nantou.gov.tw",
         "https://yunlin.gov.tw", "https://chiayi.gov.tw", "https://cyhg.gov.tw", "https://pthg.gov.tw", "https://e-land.gov.tw", "https://hl.gov.tw",
         "https://taitung.gov.tw", "https://penghu.gov.tw", "https://kinmen.gov.tw", "https://matsu.gov.tw"
@@ -39,12 +39,15 @@ with col1:
 
 with col2:
     st.subheader("首長詳細名單")
-    # 將「市政府官網」這個欄位設定為純連結，並把顯示文字改成「點我前往」
+    # 關鍵：加上 validate 正規表示式參數，強制讓瀏覽器判定為外部完整 URL
     st.dataframe(
         display_df, 
         use_container_width=True, 
         hide_index=True,
         column_config={
-            "市政府官網": st.column_config.LinkColumn(display_text="點我前往")
+            "市政府官網": st.column_config.LinkColumn(
+                display_text="點我前往",
+                validate="^https?://"
+            )
         }
     )
