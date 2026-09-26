@@ -9,11 +9,11 @@ st.set_page_config(
 
 
 # ==========================================
-# 0. 全域共享狀態管理（跨電腦同步）
+# 0. 全域共享狀態管理（升級 V2，強制重新建立快取）
 # ==========================================
-class StatusManager:
+class StatusManagerV2:
 
-  """用來在伺服器記憶體中保存狀態與紀錄的類別"""
+  """用來在伺服器記憶體中保存狀態與紀錄的類別 (V2)"""
 
   def __init__(self):
     self.current_status = "🟢 上線"
@@ -29,7 +29,7 @@ class StatusManager:
     self.current_status = new_status
     self.notice_message = notice
 
-    # 嚴格限制跑馬燈最大長度為 60 字
+    # 完整支援 60 字限制
     if ticker:
       self.ticker_text = ticker[:60]
     else:
@@ -60,19 +60,13 @@ class StatusManager:
 
 
 @st.cache_resource
-def get_status_manager():
-  """利用 Streamlit 快取機制，讓所有使用者共享同一個物件"""
-  return StatusManager()
+def get_status_manager_v2():
+  """利用 Streamlit 快取機制，讓所有使用者共享同一個物件 (V2)"""
+  return StatusManagerV2()
 
 
 # 取得全域唯一的狀態管理器
-status_manager = get_status_manager()
-
-# 【自動相容防錯機制】如果快取中是舊版物件，自動清除快取並重新載入
-if not hasattr(status_manager, "get_status_info"):
-  st.cache_resource.clear()
-  st.rerun()
-
+status_manager = get_status_manager_v2()
 
 # ==========================================
 # 1. 從後台 Secrets 安全讀取密碼並驗證
@@ -110,7 +104,7 @@ def render_status_display():
   notice = info["notice"]
   ticker = info["ticker"]
 
-  # 跑馬燈區塊 (使用 100% 至 -100% 移動確保完整離開視窗)
+  # 跑馬燈區塊 (滑動邏輯修正)
   if ticker:
     st.markdown(
         f"""
