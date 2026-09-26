@@ -110,21 +110,36 @@ def render_status_display():
   notice = info["notice"]
   ticker = info["ticker"]
 
-  # 跑馬燈區塊 (若管理員有輸入內容才顯示)
+  # 跑馬燈區塊 (修正裁切問題)
   if ticker:
     st.markdown(
         f"""
-            <div style="
-                background-color: #f0f2f6; 
-                padding: 8px 12px; 
-                border-radius: 8px; 
-                margin-bottom: 15px;
+            <style>
+            .ticker-wrap {{
+                width: 100%;
+                background-color: #f0f2f6;
+                border-radius: 8px;
                 border-left: 5px solid #ff4b4b;
                 overflow: hidden;
-            ">
-                <marquee behavior="scroll" direction="left" scrollamount="6" style="font-weight: bold; color: #31333F;">
-                    📢 {ticker}
-                </marquee>
+                padding: 10px 0;
+                margin-bottom: 15px;
+                white-space: nowrap;
+                box-sizing: border-box;
+            }}
+            .ticker-move {{
+                display: inline-block;
+                padding-left: 100%;
+                animation: ticker 15s linear infinite;
+                font-weight: bold;
+                color: #31333F;
+            }}
+            @keyframes ticker {{
+                0% {{ transform: translate3d(0, 0, 0); }}
+                100% {{ transform: translate3d(-100%, 0, 0); }}
+            }}
+            </style>
+            <div class="ticker-wrap">
+                <div class="ticker-move">📢 {ticker}</div>
             </div>
             """,
         unsafe_allow_html=True,
