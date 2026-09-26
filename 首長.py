@@ -14,7 +14,7 @@ class StatusManager:
     def __init__(self):
         self.current_status = "🟢 上線"
         self.notice_message = ""      # 管理員自訂公告
-        self.ticker_text = "🎉 歡迎來到人事部勞工運行狀態中心！系統目前正常運作中。"  # 新增：跑馬燈預設內容
+        self.ticker_text = "🎉 歡迎來到人事部勞工運行狀態中心！系統目前正常運作中。"  # 跑馬燈預設內容
         self.last_updated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.logs = []
         
@@ -62,6 +62,11 @@ def get_status_manager():
 # 取得全域唯一的狀態管理器
 status_manager = get_status_manager()
 
+# 【自動相容防錯機制】如果快取中是舊版物件，自動清除快取並重新載入
+if not hasattr(status_manager, "get_status_info"):
+    st.cache_resource.clear()
+    st.rerun()
+
 # ==========================================
 # 1. 從後台 Secrets 安全讀取密碼並驗證
 # ==========================================
@@ -72,7 +77,7 @@ def check_password(password_input):
     elif "ADMIN_PASSWORD" in os.environ:
         secret_password = os.environ["ADMIN_PASSWORD"]
     else:
-        secret_password = "admin"  # 預設密碼，建議部署時設定 ADMIN_PASSWORD
+        secret_password = "admin"  # 本地測試備用密碼
         
     hash_input = hashlib.sha256(password_input.encode()).hexdigest()
     hash_secret = hashlib.sha256(secret_password.encode()).hexdigest()
@@ -97,7 +102,7 @@ def render_status_display():
     ticker = info["ticker"]
     last_updated = info["last_updated"]
 
-    # 跑馬燈區塊 (如果管理員有填寫內容才顯示)
+    # 跑馬燈區塊 (若管理員有輸入內容才顯示)
     if ticker:
         st.markdown(
             f"""
@@ -169,7 +174,7 @@ else:
             index=current_index
         )
         
-        # 新增：跑馬燈文字輸入框（限制 20 字）
+        # 跑馬燈文字輸入框（上限 20 字）
         ticker_input = st.text_input(
             "跑馬燈公告內容（上限 20 字，留空則隱藏）：",
             value=current_info["ticker"],
