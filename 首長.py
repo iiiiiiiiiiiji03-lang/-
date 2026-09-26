@@ -29,9 +29,9 @@ class StatusManager:
     self.current_status = new_status
     self.notice_message = notice
 
-    # 嚴格限制跑馬燈最大長度為 50 字
+    # 嚴格限制跑馬燈最大長度為 60 字
     if ticker:
-      self.ticker_text = ticker[:50]
+      self.ticker_text = ticker[:60]
     else:
       self.ticker_text = ""
 
@@ -52,7 +52,7 @@ class StatusManager:
             "notice": notice if notice else "無補充說明",
         },
     )
-    if len(self.logs) > 50:
+    if len(self.logs) > 20:
       self.logs.pop()
 
   def get_logs(self):
@@ -149,7 +149,6 @@ def render_status_display():
   if notice:
     st.info(f"📌 **詳細說明：** {notice}")
 
-  # 完全移除時間，僅保留狀態同步提示
   st.caption("🔄 狀態每 5 秒自動同步更新中...")
 
 
@@ -188,12 +187,12 @@ else:
         "請選擇欲變更的網站狀態：", options=status_options, index=current_index
     )
 
-    # 跑馬燈文字輸入框（上限 20 字）
+    # 跑馬燈文字輸入框（上限 60 字）
     ticker_input = st.text_input(
-        "跑馬燈公告內容（上限 20 字，留空則隱藏）：",
+        "跑馬燈公告內容（上限 60 字，留空則隱藏）：",
         value=current_info["ticker"],
-        max_chars=20,
-        help="限制最多輸入 20 個字元，會在前台最上方滾動顯示。",
+        max_chars=60,
+        help="限制最多輸入 60 個字元，會在前台最上方滾動顯示。",
     )
 
     notice_input = st.text_area(
