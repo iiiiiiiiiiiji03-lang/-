@@ -1,25 +1,37 @@
 import streamlit as st
 import hashlib
+import os
 
 # 設定網頁標題與圖示
 st.set_page_config(page_title="網站運行狀態中心", page_icon="📊", layout="centered")
 
 # ==========================================
-# 1. 密碼驗證安全機制
+# 1. 從後台 Secrets 安全讀取密碼並驗證
 # ==========================================
-# 預設的管理密碼雜湊值（明文為: admin123）
-# 您可以使用相同的 SHA-256 演算法更換此處的雜湊值來更換密碼
-DEFAULT_PASSWORD_HASH = "240982635b8e9744434302316e83815e79602e1a3bc86f0113f848fd86e88a08"
-
-def check_password(password):
-    """驗證輸入的密碼是否與預設雜湊值相符"""
-    input_hash = hashlib.sha256(password.encode()).hexdigest()
-    return input_hash == DEFAULT_PASSWORD_HASH
+def check_password(password_input):
+    """
+    從 Streamlit 後台的 Secrets 欄位安全讀取密碼。
+    GitHub 上的程式碼完全看不到您的密碼明文，絕對安全。
+    """
+    # 檢查您在圖片後台填寫的 ADMIN_PASSWORD 是否存在
+    if "ADMIN_PASSWORD" in st.secrets:
+        secret_password = st.secrets["ADMIN_PASSWORD"]
+    elif "ADMIN_PASSWORD" in os.environ:
+        secret_password = os.environ["ADMIN_PASSWORD"]
+    else:
+        st.error("❌ 系統錯誤：未設定管理員密碼。請確認您已在 Streamlit 後台的「秘密」欄位中填寫 ADMIN_PASSWORD。")
+        return False
+        
+    # 將兩者都轉為 SHA-256 雜湊值進行安全比對，防止時序攻擊
+    hash_input = hashlib.sha256(password_input.encode()).hexdigest()
+    hash_secret = hashlib.sha256(secret_password.encode()).hexdigest()
+    
+    return hash_input == hash_secret
 
 # ==========================================
 # 2. 初始化 Session State (狀態保持)
 # ==========================================
-# 預設狀態為「上線」
+# 網頁初始狀態預設為「上線」
 if "site_status" not in st.session_state:
     st.session_state["site_status"] = "🟢 上線"
 
@@ -35,11 +47,11 @@ st.subheader("目前服務狀態")
 
 current_status = st.session_state["site_status"]
 
-# 根據不同狀態顯示不同的視覺提示
+# 根據不同狀態顯示對應的視覺提示與顏色
 if current_status == "🟢 上線":
     st.success("### 🟢 系統正常運行中 (Online)\n目前所有服務皆可正常存取，請安心使用。")
 elif current_status == "🟡 維修中":
-    st.warning("### 🟡 系統定期維修中 (Maintenance)\n我們正在進行例行性維護以提升服務品質，預計不久後恢復，造成不便敬請見見諒。")
+    st.warning("### 🟡 系統定期維修中 (Maintenance)\n我們正在進行例行性維護以提升服務品質，預計不久後恢復，造成不便敬請見諒。")
 elif current_status == "🔴 故障":
     st.error("### 🔴 系統突發故障 (Down)\n核心服務目前遭遇異常，技術團隊已收到通知並正全力搶修中，請稍後再試。")
 
@@ -50,9 +62,8 @@ st.divider()
 # ==========================================
 st.subheader("🔒 管理員控制台")
 
-# 檢查是否已登入
 if not st.session_state["logged_in"]:
-    # 未登入：顯示密碼輸入框
+    # 未登入：顯示密碼輸入表單
     with st.form("login_form"):
         password_input = st.text_input("請輸入管理員密碼：", type="password")
         submit_button = st.form_submit_button("登入後台")
@@ -61,14 +72,13 @@ if not st.session_state["logged_in"]:
             if check_password(password_input):
                 st.session_state["logged_in"] = True
                 st.success("密碼正確！已成功登入管理後台。")
-                st.rerun()  # 重新整理頁面以顯示管理功能
+                st.rerun()  # 重新整理頁面以顯示狀態修改選項
             else:
                 st.error("密碼錯誤，請再試一次。")
 else:
     # 已登入：顯示狀態切換選項與登出按鈕
     st.info("🔓 您已成功登入，可以自由切換網站狀態。")
     
-    # 狀態選擇器（自動對應目前的狀態索引）
     status_options = ["🟢 上線", "🟡 維修中", "🔴 故障"]
     current_index = status_options.index(st.session_state["site_status"])
     
@@ -78,14 +88,14 @@ else:
         index=current_index
     )
     
-    col1, col2 = st.columns([3, 1])
+    col1, col2 = st.columns()
     
     with col1:
-        # 儲存狀態變更
+        # 儲存並更新狀態
         if st.button("更新網站狀態", type="primary"):
             st.session_state["site_status"] = new_status
             st.success(f"狀態已成功更新為：{new_status}")
-            st.rerun()
+            st.rerun()  # 重新整理讓前台立刻變色
             
     with col2:
         # 登出管理員身分
