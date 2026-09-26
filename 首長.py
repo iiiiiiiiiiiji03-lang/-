@@ -5,10 +5,10 @@ import pandas as pd
 st.set_page_config(page_title="台灣縣市首長資訊圖", layout="wide")
 st.title("🗺️ 全台灣縣市首長資訊圖表")
 
-# 1. 建立縣市首長資料庫（加入各縣市政府官網連結）
+# 1. 建立縣市首長資料庫（維持純網址）
 data = {
     "縣市": ["臺北市", "新北市", "桃園市", "臺中市", "臺南市", "高雄市", "基隆市", "新竹市", "新竹縣", "苗栗縣", "彰化縣", "南投縣", "雲林縣", "嘉義市", "嘉義縣", "屏東縣", "宜蘭縣", "花蓮縣", "臺東縣", "澎湖縣", "金門縣", "連江縣"],
-    "網址": [
+    "市政府官網": [
         "https://gov.taipei", "https://ntpc.gov.tw", "https://tycg.gov.tw", "https://taichung.gov.tw", "https://tainan.gov.tw", "https://kcg.gov.tw",
         "https://klcg.gov.tw", "https://hccg.gov.tw", "https://hsinchu.gov.tw", "https://miaoli.gov.tw", "https://chcg.gov.tw", "https://nantou.gov.tw",
         "https://yunlin.gov.tw", "https://chiayi.gov.tw", "https://cyhg.gov.tw", "https://pthg.gov.tw", "https://e-land.gov.tw", "https://hl.gov.tw",
@@ -22,15 +22,12 @@ df = pd.DataFrame(data)
 # 2. 側邊欄過濾器
 st.sidebar.header("篩選條件")
 selected_party = st.sidebar.multiselect("選擇政黨", options=df["政黨"].unique(), default=df["政黨"].unique())
-filtered_df = df[df["政黨"].isin(selected_party)].copy()
+filtered_df = df[df["政黨"].isin(selected_party)]
 
-# 3. 關鍵改動：將「縣市」與「網址」結合成 Markdown 的超連結格式
-filtered_df["縣市（可點選官網）"] = filtered_df.apply(lambda row: f"[{row['縣市']}]({row['網址']})", axis=1)
+# 整理要顯示的欄位
+display_df = filtered_df[["縣市", "首長", "政黨", "市政府官網"]]
 
-# 整理要顯示的欄位順序與名稱
-display_df = filtered_df[["縣市（可點選官網）", "首長", "政黨"]]
-
-# 4. 畫面佈局
+# 3. 畫面佈局
 col1, col2 = st.columns(2)
 
 with col1:
@@ -42,12 +39,12 @@ with col1:
 
 with col2:
     st.subheader("首長詳細名單")
-    # 使用 st.dataframe 並開啟連結渲染功能 (column_config.LinkColumn)
+    # 將「市政府官網」這個欄位設定為純連結，並把顯示文字改成「點我前往」
     st.dataframe(
         display_df, 
         use_container_width=True, 
         hide_index=True,
         column_config={
-            "縣市（可點選官網）": st.column_config.LinkColumn(display_text="點我前往官網")
+            "市政府官網": st.column_config.LinkColumn(display_text="點我前往")
         }
     )
