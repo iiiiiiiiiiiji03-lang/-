@@ -1,67 +1,117 @@
 import streamlit as st
-import plotly.express as px
 import pandas as pd
+from datetime import datetime
 
-st.set_page_config(page_title="台灣縣市首長資訊圖", layout="wide")
-st.title("🗺️ 全台灣縣市首長資訊圖表")
+# 1. 網頁基本設定 (設定為寬版，加入台灣地圖圖示)
+st.set_page_config(page_title="台灣匿名版 - 無政府自由看板", layout="wide", page_icon="🇹🇼")
 
-# 1. 建立純粹的縣市首長資料庫
-data = {
-    "縣市": ["臺北市", "新北市", "桃園市", "臺中市", "臺南市", "高雄市", "基隆市", "新竹市", "新竹縣", "苗栗縣", "彰化縣", "南投縣", "雲林縣", "嘉義市", "嘉義縣", "屏東縣", "宜蘭縣", "花蓮縣", "臺東縣", "澎湖縣", "金門縣", "連江縣"],
-    "首長": ["蔣萬安", "侯友宜", "張善政", "盧秀燕", "黃偉哲", "陳其邁", "謝國樑", "高虹安", "楊文科", "鍾東錦", "王惠美", "許淑華", "張麗善", "黃敏惠", "翁章梁", "周春米", "林姿妙", "徐榛蔚", "饒慶鈴", "陳光復", "陳福海", "王忠銘"],
-    "政黨": ["中國國民黨", "中國國民黨", "中國國民黨", "中國國民黨", "民主進步黨", "民主進步黨", "中國國民黨", "台灣民眾黨", "中國國民黨", "無黨籍", "中國國民黨", "中國國民黨", "中國國民黨", "中國國民黨", "民主進步黨", "民主進步黨", "中國國民黨", "中國國民黨", "中國國民黨", "民主進步黨", "無黨籍", "中國國民黨"]
-}
-df = pd.DataFrame(data)
-
-# 2. 側邊欄過濾器
-st.sidebar.header("篩選條件")
-selected_party = st.sidebar.multiselect("選擇政黨", options=df["政黨"].unique(), default=df["政黨"].unique())
-filtered_df = df[df["政黨"].isin(selected_party)]
-
-# 3. 畫面佈局（左邊圓餅圖，右邊名單表格）
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader("政黨席次比例")
-    party_counts = filtered_df["政黨"].value_counts().reset_index()
-    color_map = {"中國國民黨": "#000095", "民主進步黨": "#1B9431", "台灣民眾黨": "#28C8C8", "無黨籍": "#707070"}
-    fig = px.pie(party_counts, values="count", names="政黨", color="政黨", color_discrete_map=color_map, hole=0.3)
-    st.plotly_chart(fig, use_container_width=True)
-
-with col2:
-    st.subheader("首長詳細名單")
-    st.dataframe(filtered_df, use_container_width=True, hide_index=True)
-
-
-# ==========================================
-# 4. 經典訪客留言板（跨瀏覽器共享、無額外提示）
-# ==========================================
-st.write("---")
-st.subheader("💬 訪客留言板")
-
-# 使用全域快取儲存留言，讓所有人都能看到彼此的留言
+# 2. 全域快取：這是無政府匿名版的「雲端資料庫」
 @st.cache_resource
-def get_message_db():
-    return [{"name": "系統管理員", "text": "歡迎留言討論！"}]
+def init_bulletin_board():
+    # 預設一些好玩的匿名初始文章
+    return [
+        {
+            "看板": "2026選戰預測 🗳️",
+            "暱稱": "神算諸葛",
+            "時間": "2026-09-25 14:20",
+            "標題": "大家覺得年底九合一大選，哪一個縣市最激戰？",
+            "內容": "感覺這次台北跟高雄都很精彩，大家有內幕消息嗎？歡迎盲猜！"
+        },
+        {
+            "看板": "六都政治八卦 🏙️",
+            "暱稱": "吃瓜群眾",
+            "時間": "2026-09-26 21:05",
+            "標題": "有人知道某縣市首長最近的行程嗎？",
+            "內容": "純粹好奇，聽說最近都在跑基層，是不是在為連任鋪路？"
+        },
+        {
+            "看板": "全台大雜燴 ☕",
+            "暱稱": "路過的路人",
+            "時間": "2026-09-27 00:15",
+            "標題": "這個匿名版真的不會抓IP嗎？",
+            "內容": "測試一下，如果真的不抓IP，那這裡簡直是講真話的天堂概念網頁啊哈哈哈！"
+        }
+    ]
 
-db = get_message_db()
+posts_db = init_bulletin_board()
 
-# 留言輸入區域
-with st.form(key="my_comment_form", clear_on_submit=True):
-    name = st.text_input("您的暱稱", max_chars=20)
-    comment = st.text_area("留言內容", max_chars=200)
-    submit = st.form_submit_button(label="送出")
+# ==========================================
+# 側邊欄：看板切換與發文功能
+# ==========================================
+st.sidebar.title("🇹🇼 台灣匿名版")
+st.sidebar.write("`完全匿名 / 不記IP / 自由發言`")
+st.sidebar.write("---")
 
-# 按下送出時的動作
-if submit:
-    if name.strip() != "" and comment.strip() != "":
-        # 把最新留言塞到最前面
-        db.insert(0, {"name": name.strip(), "text": comment.strip()})
-        # 強制重新整理畫面以顯示新留言
+# 選擇要看哪一個板
+board_options = ["全部看板 📑", "全台大雜燴 ☕", "六都政治八卦 🏙️", "2026選戰預測 🗳️", "地方政策吐槽 📢"]
+selected_board = st.sidebar.selectbox("🎯 選擇討論板", board_options)
+
+st.sidebar.write("---")
+st.sidebar.subheader("✍️ 匿名發表新文章")
+
+# 發文表單
+with st.sidebar.form(key="publish_form", clear_on_submit=True):
+    new_board = st.selectbox("選擇要發表的看板", board_options[1:]) # 排除「全部看板」
+    new_name = st.text_input("匿名暱稱", max_chars=15, placeholder="例如：中正區鄉民")
+    new_title = st.text_input("文章標題", max_chars=40, placeholder="吸引人的標題...")
+    new_content = st.text_area("文章內容", max_chars=500, placeholder="請暢所欲言...")
+    submit_post = st.form_submit_button(label="🚀 匿名發布")
+
+# 處理發文邏輯
+if submit_post:
+    if new_name.strip() == "" or new_title.strip() == "" or new_content.strip() == "":
+        st.sidebar.error("欄位不能留白喔！")
+    else:
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+        # 把新文章塞到最前面
+        posts_db.insert(0, {
+            "看板": new_board,
+            "暱稱": new_name.strip(),
+            "時間": current_time,
+            "標題": new_title.strip(),
+            "content": new_content.strip()  # 這裡先存入，後面展開顯示
+        })
+        st.sidebar.success("文章已成功匿名送出！")
         st.rerun()
 
-# 純粹的留言列表展示
-for item in db:
-    st.markdown(f"**👤 {item['name']}**")
-    st.caption(item['text'])
-    st.write("")
+# ==========================================
+# 主畫面：文章列表展示
+# ==========================================
+st.title(f"📌 目前看板：{selected_board}")
+st.write("---")
+
+# 根據選板過濾文章
+if selected_board == "全部看板 📑":
+    display_posts = posts_db
+else:
+    display_posts = [p for p in posts_db if p["看板"] == selected_board]
+
+# 如果看板是空的
+if not display_posts:
+    st.info("目前這個看板還沒有人發文，快來當第一個開荒者吧！")
+
+# 展開顯示每一篇文章
+for idx, post in enumerate(display_posts):
+    # 使用 Streamlit 的 Expander（可摺疊區塊）做出像論壇點開文章的效果
+    with st.expander(f"【{post['看板']}】 {post['標題']}  —  👤 {post['暱稱']} ({post['時間']})"):
+        # 如果是預設文章或新發文章，確保欄位能正常讀取
+        content_text = post.get("內容") if "內容" in post else post.get("content", "")
+        st.write(content_text)
+        
+        # 幫每篇文章加上一個趣味匿名推文區 (每篇文章獨立)
+        st.write("`— 匿名推文區 —`")
+        comment_key = f"comment_{idx}"
+        if comment_key not in st.session_state:
+            st.session_state[comment_key] = ["👍 鄉民前來朝聖！"]
+            
+        # 顯示該文章的推文
+        for c in st.session_state[comment_key]:
+            st.caption(c)
+            
+        # 快速推文小輸入框
+        with st.form(key=f"reply_form_{idx}", clear_on_submit=True):
+            reply_text = st.text_input("快速回覆這篇...", max_chars=50, key=f"input_{idx}")
+            reply_sub = st.form_submit_button("推")
+            if reply_sub and reply_text.strip() != "":
+                st.session_state[comment_key].append(f"💬 匿名鄉民：{reply_text.strip()}")
+                st.rerun()
