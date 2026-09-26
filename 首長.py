@@ -9,6 +9,7 @@ st.set_page_config(page_title="台灣匿名版 - 無政府自由看板", layout=
 @st.cache_resource
 def init_bulletin_board():
     # 這裡面完全不放任何預設貼文，留空等待網友發文
+    # 每篇貼文的資料結構裡，會多一個 "replies" 的獨立清單來存全域推文
     return []
 
 posts_db = init_bulletin_board()
@@ -41,13 +42,14 @@ if submit_post:
         st.sidebar.error("欄位不能留白喔！")
     else:
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-        # 把新文章塞到最前面
+        # 把新文章塞到最前面，並預設一個空的全域推文清單 []
         posts_db.insert(0, {
             "看板": new_board,
             "暱稱": new_name.strip(),
             "時間": current_time,
             "標題": new_title.strip(),
-            "content": new_content.strip()
+            "content": new_content.strip(),
+            "replies": []  # 核心修正：讓推文存在全域資料中
         })
         st.sidebar.success("文章已成功匿名送出！")
         st.rerun()
@@ -64,7 +66,7 @@ if selected_board == "全部看板 📑":
 else:
     display_posts = [p for p in posts_db if p["看板"] == selected_board]
 
-# 如果看板是空的（一開始沒人發文會顯示這個提示）
+# 如果看板是空的
 if not display_posts:
     st.info("目前這個看板還沒有人發文，快來側邊欄當第一個發文的開荒者吧！🚀")
 
@@ -74,14 +76,14 @@ for idx, post in enumerate(display_posts):
         content_text = post.get("內容") if "內容" in post else post.get("content", "")
         st.write(content_text)
         
-        # 幫每篇文章加上一個趣味匿名推文區 (每篇文章獨立)
         st.write("`— 匿名推文區 —`")
-        comment_key = f"comment_{idx}"
-        if comment_key not in st.session_state:
-            st.session_state[comment_key] = [] # 推文一開始也保持全空
+        
+        # 確保舊的文章或相容性不會出錯，若無 replies 欄位則自動補上
+        if "replies" not in post:
+            post["replies"] = []
             
-        # 顯示該文章的推文
-        for c in st.session_state[comment_key]:
+        # 核心改動：直接從全域 post["replies"] 讀取推文，所有人畫面都會同步！
+        for c in post["replies"]:
             st.caption(c)
             
         # 快速推文小輸入框
@@ -89,5 +91,6 @@ for idx, post in enumerate(display_posts):
             reply_text = st.text_input("快速回覆這篇...", max_chars=50, key=f"input_{idx}")
             reply_sub = st.form_submit_button("推")
             if reply_sub and reply_text.strip() != "":
-                st.session_state[comment_key].append(f"💬 匿名鄉民：{reply_text.strip()}")
+                # 直接塞進該篇文章的全域推文清單中
+                post["replies"].append(f"💬 匿名鄉民：{reply_text.strip()}")
                 st.rerun()
