@@ -13,7 +13,6 @@ def check_password(password_input):
     從 Streamlit 後台的 Secrets 欄位安全讀取密碼。
     GitHub 上的程式碼完全看不到您的密碼明文，絕對安全。
     """
-    # 檢查您在圖片後台填寫的 ADMIN_PASSWORD 是否存在
     if "ADMIN_PASSWORD" in st.secrets:
         secret_password = st.secrets["ADMIN_PASSWORD"]
     elif "ADMIN_PASSWORD" in os.environ:
@@ -22,7 +21,7 @@ def check_password(password_input):
         st.error("❌ 系統錯誤：未設定管理員密碼。請確認您已在 Streamlit 後台的「秘密」欄位中填寫 ADMIN_PASSWORD。")
         return False
         
-    # 將兩者都轉為 SHA-256 雜湊值進行安全比對，防止時序攻擊
+    # 將兩者都轉為 SHA-256 雜湊值進行安全比對
     hash_input = hashlib.sha256(password_input.encode()).hexdigest()
     hash_secret = hashlib.sha256(secret_password.encode()).hexdigest()
     
@@ -31,11 +30,9 @@ def check_password(password_input):
 # ==========================================
 # 2. 初始化 Session State (狀態保持)
 # ==========================================
-# 網頁初始狀態預設為「上線」
 if "site_status" not in st.session_state:
     st.session_state["site_status"] = "🟢 上線"
 
-# 預設登入狀態為「未登入」
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
@@ -47,7 +44,6 @@ st.subheader("目前服務狀態")
 
 current_status = st.session_state["site_status"]
 
-# 根據不同狀態顯示對應的視覺提示與顏色
 if current_status == "🟢 上線":
     st.success("### 🟢 系統正常運行中 (Online)\n目前所有服務皆可正常存取，請安心使用。")
 elif current_status == "🟡 維修中":
@@ -63,7 +59,6 @@ st.divider()
 st.subheader("🔒 管理員控制台")
 
 if not st.session_state["logged_in"]:
-    # 未登入：顯示密碼輸入表單
     with st.form("login_form"):
         password_input = st.text_input("請輸入管理員密碼：", type="password")
         submit_button = st.form_submit_button("登入後台")
@@ -72,11 +67,10 @@ if not st.session_state["logged_in"]:
             if check_password(password_input):
                 st.session_state["logged_in"] = True
                 st.success("密碼正確！已成功登入管理後台。")
-                st.rerun()  # 重新整理頁面以顯示狀態修改選項
+                st.rerun()
             else:
                 st.error("密碼錯誤，請再試一次。")
 else:
-    # 已登入：顯示狀態切換選項與登出按鈕
     st.info("🔓 您已成功登入，可以自由切換網站狀態。")
     
     status_options = ["🟢 上線", "🟡 維修中", "🔴 故障"]
@@ -88,17 +82,16 @@ else:
         index=current_index
     )
     
-    col1, col2 = st.columns()
+    # 【已修正】這裡加上了 2，代表將按鈕切分為左右兩欄
+    col1, col2 = st.columns(2)
     
     with col1:
-        # 儲存並更新狀態
         if st.button("更新網站狀態", type="primary"):
             st.session_state["site_status"] = new_status
             st.success(f"狀態已成功更新為：{new_status}")
-            st.rerun()  # 重新整理讓前台立刻變色
+            st.rerun()
             
     with col2:
-        # 登出管理員身分
         if st.button("登出後台"):
             st.session_state["logged_in"] = False
             st.success("已成功登出。")
