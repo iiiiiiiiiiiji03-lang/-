@@ -1,10 +1,15 @@
 import streamlit as st
 import hashlib
 import os
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 # 設定網頁標題與圖示
 st.set_page_config(page_title="人事部勞工運行狀態中心", page_icon="📊", layout="centered")
+
+# 輔助函式：取得目前的台灣時間 (UTC+8)
+def get_taiwan_time():
+    tz_taiwan = timezone(timedelta(hours=8))
+    return datetime.now(tz_taiwan).strftime("%Y-%m-%d %H:%M:%S")
 
 # ==========================================
 # 0. 全域共享狀態管理（跨電腦同步）
@@ -15,7 +20,7 @@ class StatusManager:
         self.current_status = "🟢 上線"
         self.notice_message = ""      # 管理員自訂公告
         self.ticker_text = "🎉 歡迎來到人事部勞工運行狀態中心！系統目前正常運作中。"  # 跑馬燈預設內容
-        self.last_updated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.last_updated = get_taiwan_time()
         self.logs = []
         
         self.add_log("🟢 上線", "系統初始化")
@@ -30,7 +35,7 @@ class StatusManager:
         else:
             self.ticker_text = ""
             
-        self.last_updated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.last_updated = get_taiwan_time()
         self.add_log(new_status, notice)
         
     def get_status_info(self):
@@ -42,7 +47,7 @@ class StatusManager:
         }
 
     def add_log(self, status, notice):
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = get_taiwan_time()
         self.logs.insert(0, {
             "timestamp": timestamp,
             "status": status,
@@ -135,6 +140,7 @@ def render_status_display():
     if notice:
         st.info(f"📌 **詳細說明：** {notice}")
         
+    # 保留台灣時間格式的最後更新時間與動態更新提示
     st.caption(f"🕒 最後更新時間：{last_updated} ｜ 🔄 狀態每 5 秒自動同步更新中...")
 
 # 執行前台狀態區
