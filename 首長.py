@@ -1,91 +1,81 @@
 import threading
-from flask import Flask, jsonify, render_template_string
+import asyncio
+import streamlit as st
 import discord
 from discord.ext import commands
 
-# 1. 初始化 Discord 機器人
-intents = discord.Intents.default()
-bot = commands.Bot(command_prefix="!", intents=intents)
+# 設定網頁標題與圖示
+st.set_page_config(page_title="Discord 機器人狀態面板", layout="centered", page_icon="🤖")
+st.title("🤖 Discord 機器人狀態面板")
 
-# 2. 初始化 Flask 網頁應用
-app = Flask(__name__)
+# 1. 使用 Streamlit 快取機制，確保機器人在背景「只會啟動一次」，不會因為網頁刷新而重複啟動
+@st.cache_resource
+def start_discord_bot():
+    intents = discord.Intents.default()
+    # 如果你的機器人需要讀取成員名單或訊息，請在下方開啟對應的 intents
+    # intents.members = True
+    # intents.message_content = True
+    
+    bot = commands.Bot(command_prefix="!", intents=intents)
+    
+    # 為背景線程建立專屬的事件循環 (Event Loop)
+    loop = asyncio.new_event_loop()
+    
+    # 用來跨線程共享的狀態字典
+    status_data = {
+        "bot": bot,
+        "is_ready": False
+    }
 
-# 簡單的 HTML 範本，用於前端顯示
-HTML_TEMPLATE = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Discord 機器人狀態面板</title>
-    <meta charset="utf-8">
-    <style>
-        body { font-family: Arial, sans-serif; background: #2c2f33; color: white; text-align: center; padding-top: 50px; }
-        .card { background: #23272a; padding: 20px; display: inline-block; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
-        .status { font-weight: bold; color: #43b581; }
-    </style>
-</head>
-<body>
-    <div class="card">
-        <h2>🤖 {{ name }} 狀態面板</h2>
-        <p>目前狀態: <span class="status">{{ status }}</span></p>
-        <p>延遲 (Ping): {{ latency }} ms</p>
-        <p>已加入的伺服器總數: {{ guild_count }} 個</p>
-    </div>
-    <script>
-        // 每 5 秒自動重新整理網頁獲取最新狀態
-        setTimeout(() => { location.reload(); }, 5000);
-    </script>
-</body>
-</html>
-"""
+    @bot.event
+    async def on_ready():
+        status_data["is_ready"] = True
+        print(f"【系統通知】機器人已成功上線：{bot.user}")
 
-# Flask 路由：顯示狀態網頁
-@app.route('/')
-def home():
-    if bot.is_ready():
-        status_info = {
-            "name": str(bot.user),
-            "status": "線上 (Online)",
-            "latency": round(bot.latency * 1000),
-            "guild_count": len(bot.guilds)
-        }
-    else:
-        status_info = {
-            "name": "未連線機器人",
-            "status": "離線 (Offline)",
-            "latency": 0,
-            "guild_count": 0
-        }
-    return render_template_string(HTML_TEMPLATE, **status_info)
+    def run_bot():
+        asyncio.set_event_loop(loop)
+        try:
+            # 從 Streamlit 後台的 Secrets 安全地讀取 Token
+            TOKEN = st.secrets["DISCORD_TOKEN"]
+            loop.run_until_complete(bot.start(TOKEN))
+        except Exception as e:
+            print(f"【錯誤】機器人啟動失敗: {e}")
 
-# Flask 路由：提供 API 接口（供未來擴充或給其他前端讀取）
-@app.route('/api/status')
-def api_status():
-    if bot.is_ready():
-        return jsonify({
-            "online": True,
-            "bot_name": str(bot.user),
-            "ping_ms": round(bot.latency * 1000),
-            "guilds": len(bot.guilds)
-        })
-    return jsonify({"online": False, "message": "Bot is not ready yet."})
+    # 建立多線程 (Multi-threading) 讓機器人在背景跑，不卡住網頁
+    bot_thread = threading.Thread(target=run_bot, daemon=True)
+    bot_thread.start()
+    
+    return status_data
 
-# 3. Discord 機器人事件
-@bot.event
-def on_ready():
-    print(f"機器人已上線：{bot.user}")
+# 呼叫啟動函式（如果已經啟動過，會直接回傳現有的狀態）
+bot_status = start_discord_bot()
+bot = bot_status["bot"]
 
-# 4. 建立多線程運行網頁
-def run_flask():
-    # host="0.0.0.0" 允許外部網路連線，port=5000
-    app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
+# 2. 製作 Streamlit 前端網頁畫面
+st.subheader("即時連線數據")
 
-if __name__ == "__main__":
-    # 先啟動 Flask 網頁線程
-    flask_thread = threading.Thread(target=run_flask)
-    flask_thread.daemon = True
-    flask_thread.start()
+# 判斷機器人是否已經成功與 Discord 連線
+if bot_status["is_ready"] and bot.user:
+    st.success("🟢 機器人目前在線中 (Online)")
+    
+    # 建立三個漂亮的數據方塊
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric(label="🤖 機器人名稱", value=str(bot.user).split('#')[0])
+    with col2:
+        # 計算延遲時間 (微秒轉毫秒)
+        ping = round(bot.latency * 1000) if bot.latency and not float('inf') else 0
+        st.metric(label="⚡ 延遲 (Ping)", value=f"{ping} ms")
+    with col3:
+        st.metric(label="🏠 伺服器總數", value=f"{len(bot.guilds)} 個")
+        
+else:
+    st.warning("🔴 機器人正在聯絡 Discord 伺服器中，或處於離線狀態...")
+    st.info("提示：如果等待過久，請檢查 Streamlit 後台的 Secrets 是否有正確填入 `DISCORD_TOKEN`，或查看右下角的 Manage app 紀錄。")
 
-    # 再啟動 Discord 機器人（請替換成你在 Discord Developer Portal 取得的 Token）
-    # 參考教學：https://discord.com/developers/applications
-    TOKEN = st.secrets["DISCORD_TOKEN"]
-    bot.run(TOKEN)
+st.divider()
+
+# 手動重新整理按鈕
+if st.button("🔄 重新整理網頁狀態"):
+    st.author = "Streamlit"
+    st.rerun()
