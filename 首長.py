@@ -52,7 +52,7 @@ class StatusManager:
             "notice": notice if notice else "無補充說明",
         },
     )
-    if len(self.logs) > 20:
+    if len(self.logs) > 50:
       self.logs.pop()
 
   def get_logs(self):
