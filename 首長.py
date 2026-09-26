@@ -110,36 +110,38 @@ def render_status_display():
   notice = info["notice"]
   ticker = info["ticker"]
 
-  # 跑馬燈區塊 (修正裁切問題)
+  # 跑馬燈區塊 (修正文字裁切與防遮擋問題)
   if ticker:
     st.markdown(
         f"""
             <style>
-            .ticker-wrap {{
-                width: 100%;
-                background-color: #f0f2f6;
-                border-radius: 8px;
+            .ticker-container {{
+                display: flex;
+                align-items: center;
+                background: rgba(255, 255, 255, 0.08);
+                border: 1px solid rgba(255, 255, 255, 0.15);
                 border-left: 5px solid #ff4b4b;
+                border-radius: 8px;
+                padding: 12px 16px;
+                margin-bottom: 20px;
                 overflow: hidden;
-                padding: 10px 0;
-                margin-bottom: 15px;
-                white-space: nowrap;
-                box-sizing: border-box;
             }}
-            .ticker-move {{
+            .ticker-content {{
                 display: inline-block;
+                white-space: nowrap;
                 padding-left: 100%;
-                animation: ticker 15s linear infinite;
-                font-weight: bold;
-                color: #31333F;
+                animation: scroll-left 14s linear infinite;
+                font-size: 15px;
+                font-weight: 600;
+                line-height: 1.5;
             }}
-            @keyframes ticker {{
-                0% {{ transform: translate3d(0, 0, 0); }}
-                100% {{ transform: translate3d(-100%, 0, 0); }}
+            @keyframes scroll-left {{
+                0% {{ transform: translateX(0); }}
+                100% {{ transform: translateX(-100%); }}
             }}
             </style>
-            <div class="ticker-wrap">
-                <div class="ticker-move">📢 {ticker}</div>
+            <div class="ticker-container">
+                <div class="ticker-content">📢 {ticker}</div>
             </div>
             """,
         unsafe_allow_html=True,
