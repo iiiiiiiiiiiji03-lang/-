@@ -1,81 +1,95 @@
-import threading
-import asyncio
 import streamlit as st
-import discord
-from discord.ext import commands
+import hashlib
 
 # 設定網頁標題與圖示
-st.set_page_config(page_title="Discord 機器人狀態面板", layout="centered", page_icon="🤖")
-st.title("🤖 Discord 機器人狀態面板")
+st.set_page_config(page_title="網站運行狀態中心", page_icon="📊", layout="centered")
 
-# 1. 使用 Streamlit 快取機制，確保機器人在背景「只會啟動一次」，不會因為網頁刷新而重複啟動
-@st.cache_resource
-def start_discord_bot():
-    intents = discord.Intents.default()
-    # 如果你的機器人需要讀取成員名單或訊息，請在下方開啟對應的 intents
-    # intents.members = True
-    # intents.message_content = True
-    
-    bot = commands.Bot(command_prefix="!", intents=intents)
-    
-    # 為背景線程建立專屬的事件循環 (Event Loop)
-    loop = asyncio.new_event_loop()
-    
-    # 用來跨線程共享的狀態字典
-    status_data = {
-        "bot": bot,
-        "is_ready": False
-    }
+# ==========================================
+# 1. 密碼驗證安全機制
+# ==========================================
+# 預設的管理密碼雜湊值（明文為: admin123）
+# 您可以使用相同的 SHA-256 演算法更換此處的雜湊值來更換密碼
+DEFAULT_PASSWORD_HASH = "240982635b8e9744434302316e83815e79602e1a3bc86f0113f848fd86e88a08"
 
-    @bot.event
-    async def on_ready():
-        status_data["is_ready"] = True
-        print(f"【系統通知】機器人已成功上線：{bot.user}")
+def check_password(password):
+    """驗證輸入的密碼是否與預設雜湊值相符"""
+    input_hash = hashlib.sha256(password.encode()).hexdigest()
+    return input_hash == DEFAULT_PASSWORD_HASH
 
-    def run_bot():
-        asyncio.set_event_loop(loop)
-        try:
-            # 從 Streamlit 後台的 Secrets 安全地讀取 Token
-            TOKEN = st.secrets["DISCORD_TOKEN"]
-            loop.run_until_complete(bot.start(TOKEN))
-        except Exception as e:
-            print(f"【錯誤】機器人啟動失敗: {e}")
+# ==========================================
+# 2. 初始化 Session State (狀態保持)
+# ==========================================
+# 預設狀態為「上線」
+if "site_status" not in st.session_state:
+    st.session_state["site_status"] = "🟢 上線"
 
-    # 建立多線程 (Multi-threading) 讓機器人在背景跑，不卡住網頁
-    bot_thread = threading.Thread(target=run_bot, daemon=True)
-    bot_thread.start()
-    
-    return status_data
+# 預設登入狀態為「未登入」
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
 
-# 呼叫啟動函式（如果已經啟動過，會直接回傳現有的狀態）
-bot_status = start_discord_bot()
-bot = bot_status["bot"]
+# ==========================================
+# 3. 前台：使用者查看狀態介面
+# ==========================================
+st.title("🌐 網站運行狀態中心")
+st.subheader("目前服務狀態")
 
-# 2. 製作 Streamlit 前端網頁畫面
-st.subheader("即時連線數據")
+current_status = st.session_state["site_status"]
 
-# 判斷機器人是否已經成功與 Discord 連線
-if bot_status["is_ready"] and bot.user:
-    st.success("🟢 機器人目前在線中 (Online)")
-    
-    # 建立三個漂亮的數據方塊
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric(label="🤖 機器人名稱", value=str(bot.user).split('#')[0])
-    with col2:
-        # 計算延遲時間 (微秒轉毫秒)
-        ping = round(bot.latency * 1000) if bot.latency and not float('inf') else 0
-        st.metric(label="⚡ 延遲 (Ping)", value=f"{ping} ms")
-    with col3:
-        st.metric(label="🏠 伺服器總數", value=f"{len(bot.guilds)} 個")
-        
-else:
-    st.warning("🔴 機器人正在聯絡 Discord 伺服器中，或處於離線狀態...")
-    st.info("提示：如果等待過久，請檢查 Streamlit 後台的 Secrets 是否有正確填入 `DISCORD_TOKEN`，或查看右下角的 Manage app 紀錄。")
+# 根據不同狀態顯示不同的視覺提示
+if current_status == "🟢 上線":
+    st.success("### 🟢 系統正常運行中 (Online)\n目前所有服務皆可正常存取，請安心使用。")
+elif current_status == "🟡 維修中":
+    st.warning("### 🟡 系統定期維修中 (Maintenance)\n我們正在進行例行性維護以提升服務品質，預計不久後恢復，造成不便敬請見見諒。")
+elif current_status == "🔴 故障":
+    st.error("### 🔴 系統突發故障 (Down)\n核心服務目前遭遇異常，技術團隊已收到通知並正全力搶修中，請稍後再試。")
 
 st.divider()
 
-# 手動重新整理按鈕
-if st.button("🔄 重新整理網頁狀態"):
-    st.author = "Streamlit"
-    st.rerun()
+# ==========================================
+# 4. 後台：密碼保護的管理控制台
+# ==========================================
+st.subheader("🔒 管理員控制台")
+
+# 檢查是否已登入
+if not st.session_state["logged_in"]:
+    # 未登入：顯示密碼輸入框
+    with st.form("login_form"):
+        password_input = st.text_input("請輸入管理員密碼：", type="password")
+        submit_button = st.form_submit_button("登入後台")
+        
+        if submit_button:
+            if check_password(password_input):
+                st.session_state["logged_in"] = True
+                st.success("密碼正確！已成功登入管理後台。")
+                st.rerun()  # 重新整理頁面以顯示管理功能
+            else:
+                st.error("密碼錯誤，請再試一次。")
+else:
+    # 已登入：顯示狀態切換選項與登出按鈕
+    st.info("🔓 您已成功登入，可以自由切換網站狀態。")
+    
+    # 狀態選擇器（自動對應目前的狀態索引）
+    status_options = ["🟢 上線", "🟡 維修中", "🔴 故障"]
+    current_index = status_options.index(st.session_state["site_status"])
+    
+    new_status = st.radio(
+        "請選擇欲變更的網站狀態：",
+        options=status_options,
+        index=current_index
+    )
+    
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        # 儲存狀態變更
+        if st.button("更新網站狀態", type="primary"):
+            st.session_state["site_status"] = new_status
+            st.success(f"狀態已成功更新為：{new_status}")
+            st.rerun()
+            
+    with col2:
+        # 登出管理員身分
+        if st.button("登出後台"):
+            st.session_state["logged_in"] = False
+            st.success("已成功登出。")
+            st.rerun()

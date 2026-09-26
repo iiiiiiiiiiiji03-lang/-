@@ -1,2 +1,1 @@
-streamlit
-discord.py
+streamlit>=1.30.0
