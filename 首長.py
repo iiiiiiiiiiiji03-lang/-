@@ -3,7 +3,7 @@ import hashlib
 import os
 
 # 設定網頁標題與圖示
-st.set_page_config(page_title="網站運行狀態中心", page_icon="📊", layout="centered")
+st.set_page_config(page_title="人事部勞工運行狀態中心", page_icon="📊", layout="centered")
 
 # ==========================================
 # 0. 全域共享狀態管理（跨電腦同步）
@@ -65,9 +65,9 @@ def render_status_display():
     if current_status == "🟢 上線":
         st.success("### 🟢 系統正常運行中 (Online)\n目前所有服務皆可正常存取，請安心使用。")
     elif current_status == "🟡 維修中":
-        st.warning("### 🟡 系統定期維修中 (Maintenance)\n我們正在進行例行性維護以提升服務品質，預計不久後恢復，造成不便敬請見諒。")
+        st.warning("### 🟡 系統定期維修中 (Maintenance)\n正在進行例行維提升服務品質，預計不久後恢復，造成不便請見諒。")
     elif current_status == "🔴 故障":
-        st.error("### 🔴 系統突發故障 (Down)\n核心服務目前遭遇異常，技術團隊已收到通知並正全力搶修中，請稍後再試。")
+        st.error("### 🔴 系統突發故障 (Down)\n核心服務目前遭遇異常，工程師已收到通知並正全力搶修中，請稍後再試。")
     
     # 偷偷放個小小的提示，方便您肉眼確認它有在偷偷自動倒數（上線時可拿掉這行）
     st.caption("🔄 狀態每 5 秒自動同步更新中...")
