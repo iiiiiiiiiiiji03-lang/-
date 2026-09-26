@@ -1,68 +1,91 @@
-import streamlit as st
-import pandas as pd
-from datetime import datetime
-from streamlit_autorefresh import st_autorefresh
+import threading
+from flask import Flask, jsonify, render_template_string
+import discord
+from discord.ext import commands
 
-# 1. 網頁基本設定 (設定為寬版，使用台灣國旗圖示)
-st.set_page_config(page_title="台灣匿名版 - 自由發文", layout="wide", page_icon="🇹🇼")
+# 1. 初始化 Discord 機器人
+intents = discord.Intents.default()
+bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 核心設定：網頁每隔 5 秒 (5000毫秒) 在背景自動重整，即時同步全台最新貼文
-st_autorefresh(interval=5000, key="taiwan_board_counter")
+# 2. 初始化 Flask 網頁應用
+app = Flask(__name__)
 
-# 2. 全域快取：這是一上線完全空白的「雲端資料庫」
-@st.cache_resource
-def init_bulletin_board():
-    return []
+# 簡單的 HTML 範本，用於前端顯示
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Discord 機器人狀態面板</title>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; background: #2c2f33; color: white; text-align: center; padding-top: 50px; }
+        .card { background: #23272a; padding: 20px; display: inline-block; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .status { font-weight: bold; color: #43b581; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>🤖 {{ name }} 狀態面板</h2>
+        <p>目前狀態: <span class="status">{{ status }}</span></p>
+        <p>延遲 (Ping): {{ latency }} ms</p>
+        <p>已加入的伺服器總數: {{ guild_count }} 個</p>
+    </div>
+    <script>
+        // 每 5 秒自動重新整理網頁獲取最新狀態
+        setTimeout(() => { location.reload(); }, 5000);
+    </script>
+</body>
+</html>
+"""
 
-posts_db = init_bulletin_board()
-
-# ==========================================
-# 側邊欄：純發文功能區
-# ==========================================
-st.sidebar.title("🇹🇼 台灣匿名版")
-st.sidebar.write("`完全匿名 / 不記IP / 自由發文`")
-st.sidebar.write("*(網頁每 5 秒會自動重新整理)*")
-st.sidebar.write("---")
-
-st.sidebar.subheader("✍️ 匿名發表新貼文")
-
-# 發文表單 (這裡拿掉了選擇看板的功能)
-with st.sidebar.form(key="publish_form", clear_on_submit=True):
-    new_name = st.text_input("匿名暱稱", max_chars=15, placeholder="例如：中正區鄉民")
-    new_title = st.text_input("貼文標題", max_chars=40, placeholder="輸入貼文標題...")
-    new_content = st.text_area("貼文內容", max_chars=500, placeholder="請暢所欲言...")
-    submit_post = st.form_submit_button(label="🚀 匿名發布")
-
-# 處理發文邏輯
-if submit_post:
-    if new_name.strip() == "" or new_title.strip() == "" or new_content.strip() == "":
-        st.sidebar.error("欄位不能留白喔！")
+# Flask 路由：顯示狀態網頁
+@app.route('/')
+def home():
+    if bot.is_ready():
+        status_info = {
+            "name": str(bot.user),
+            "status": "線上 (Online)",
+            "latency": round(bot.latency * 1000),
+            "guild_count": len(bot.guilds)
+        }
     else:
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-        # 把新文章塞到全域清單的最前面
-        posts_db.insert(0, {
-            "暱稱": new_name.strip(),
-            "時間": current_time,
-            "標題": new_title.strip(),
-            "content": new_content.strip()
+        status_info = {
+            "name": "未連線機器人",
+            "status": "離線 (Offline)",
+            "latency": 0,
+            "guild_count": 0
+        }
+    return render_template_string(HTML_TEMPLATE, **status_info)
+
+# Flask 路由：提供 API 接口（供未來擴充或給其他前端讀取）
+@app.route('/api/status')
+def api_status():
+    if bot.is_ready():
+        return jsonify({
+            "online": True,
+            "bot_name": str(bot.user),
+            "ping_ms": round(bot.latency * 1000),
+            "guilds": len(bot.guilds)
         })
-        st.sidebar.success("貼文已成功匿名送出！")
-        st.rerun()
+    return jsonify({"online": False, "message": "Bot is not ready yet."})
 
-# ==========================================
-# 主畫面：唯一的台灣版貼文列表展示
-# ==========================================
-st.title("📌 目前看板：台灣版 🇹🇼")
-st.write("---")
+# 3. Discord 機器人事件
+@bot.event
+def on_ready():
+    print(f"機器人已上線：{bot.user}")
 
-# 如果目前沒有任何貼文
-if not posts_db:
-    st.info("目前台灣版還沒有人發文，快來側邊欄當第一個發文的開荒者吧！🚀")
+# 4. 建立多線程運行網頁
+def run_flask():
+    # host="0.0.0.0" 允許外部網路連線，port=5000
+    app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
 
-# 展開顯示每一篇歷史貼文
-for idx, post in enumerate(posts_db):
-    # 使用可折疊區塊，標題直接呈現：標題、作者、發文時間
-    with st.expander(f"📝 {post['標題']}  —  👤 {post['暱稱']} ({post['時間']})"):
-        # 顯示純文字貼文內容 (這裡已經徹底移除下方的留言與回覆框)
-        content_text = post.get("內容") if "內容" in post else post.get("content", "")
-        st.write(content_text)
+if __name__ == "__main__":
+    # 先啟動 Flask 網頁線程
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+
+    # 再啟動 Discord 機器人（請替換成你在 Discord Developer Portal 取得的 Token）
+    # 參考教學：https://discord.com/developers/applications
+    TOKEN = st.secrets["DISCORD_TOKEN"]
+    bot.run(TOKEN)

@@ -1,4 +1,2 @@
 streamlit
-pandas
-plotly
-streamlit-autorefresh
+discord.py
