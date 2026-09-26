@@ -110,38 +110,37 @@ def render_status_display():
   notice = info["notice"]
   ticker = info["ticker"]
 
-  # 跑馬燈區塊 (修正文字裁切與防遮擋問題)
+  # 跑馬燈區塊 (使用 100% 至 -100% 移動確保完整離開視窗)
   if ticker:
     st.markdown(
         f"""
             <style>
-            .ticker-container {{
-                display: flex;
-                align-items: center;
+            .ticker-box {{
+                width: 100%;
                 background: rgba(255, 255, 255, 0.08);
                 border: 1px solid rgba(255, 255, 255, 0.15);
                 border-left: 5px solid #ff4b4b;
                 border-radius: 8px;
-                padding: 12px 16px;
+                padding: 12px 0;
                 margin-bottom: 20px;
                 overflow: hidden;
+                position: relative;
             }}
-            .ticker-content {{
+            .ticker-text {{
                 display: inline-block;
                 white-space: nowrap;
-                padding-left: 100%;
-                animation: scroll-left 14s linear infinite;
+                animation: marquee 16s linear infinite;
                 font-size: 15px;
                 font-weight: 600;
                 line-height: 1.5;
             }}
-            @keyframes scroll-left {{
-                0% {{ transform: translateX(0); }}
+            @keyframes marquee {{
+                0%   {{ transform: translateX(100%); }}
                 100% {{ transform: translateX(-100%); }}
             }}
             </style>
-            <div class="ticker-container">
-                <div class="ticker-content">📢 {ticker}</div>
+            <div class="ticker-box">
+                <div class="ticker-text">📢 {ticker}</div>
             </div>
             """,
         unsafe_allow_html=True,
