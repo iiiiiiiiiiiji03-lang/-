@@ -2,36 +2,14 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-# 1. 網頁基本設定 (設定為寬版，加入台灣地圖圖示)
+# 1. 網頁基本設定
 st.set_page_config(page_title="台灣匿名版 - 無政府自由看板", layout="wide", page_icon="🇹🇼")
 
-# 2. 全域快取：這是無政府匿名版的「雲端資料庫」
+# 2. 全域快取：這是一上線完全空白的「雲端資料庫」
 @st.cache_resource
 def init_bulletin_board():
-    # 預設一些好玩的匿名初始文章
-    return [
-        {
-            "看板": "2026選戰預測 🗳️",
-            "暱稱": "神算諸葛",
-            "時間": "2026-09-25 14:20",
-            "標題": "大家覺得年底九合一大選，哪一個縣市最激戰？",
-            "內容": "感覺這次台北跟高雄都很精彩，大家有內幕消息嗎？歡迎盲猜！"
-        },
-        {
-            "看板": "六都政治八卦 🏙️",
-            "暱稱": "吃瓜群眾",
-            "時間": "2026-09-26 21:05",
-            "標題": "有人知道某縣市首長最近的行程嗎？",
-            "內容": "純粹好奇，聽說最近都在跑基層，是不是在為連任鋪路？"
-        },
-        {
-            "看板": "全台大雜燴 ☕",
-            "暱稱": "路過的路人",
-            "時間": "2026-09-27 00:15",
-            "標題": "這個匿名版真的不會抓IP嗎？",
-            "內容": "測試一下，如果真的不抓IP，那這裡簡直是講真話的天堂概念網頁啊哈哈哈！"
-        }
-    ]
+    # 這裡面完全不放任何預設貼文，留空等待網友發文
+    return []
 
 posts_db = init_bulletin_board()
 
@@ -69,7 +47,7 @@ if submit_post:
             "暱稱": new_name.strip(),
             "時間": current_time,
             "標題": new_title.strip(),
-            "content": new_content.strip()  # 這裡先存入，後面展開顯示
+            "content": new_content.strip()
         })
         st.sidebar.success("文章已成功匿名送出！")
         st.rerun()
@@ -86,15 +64,13 @@ if selected_board == "全部看板 📑":
 else:
     display_posts = [p for p in posts_db if p["看板"] == selected_board]
 
-# 如果看板是空的
+# 如果看板是空的（一開始沒人發文會顯示這個提示）
 if not display_posts:
-    st.info("目前這個看板還沒有人發文，快來當第一個開荒者吧！")
+    st.info("目前這個看板還沒有人發文，快來側邊欄當第一個發文的開荒者吧！🚀")
 
 # 展開顯示每一篇文章
 for idx, post in enumerate(display_posts):
-    # 使用 Streamlit 的 Expander（可摺疊區塊）做出像論壇點開文章的效果
     with st.expander(f"【{post['看板']}】 {post['標題']}  —  👤 {post['暱稱']} ({post['時間']})"):
-        # 如果是預設文章或新發文章，確保欄位能正常讀取
         content_text = post.get("內容") if "內容" in post else post.get("content", "")
         st.write(content_text)
         
@@ -102,7 +78,7 @@ for idx, post in enumerate(display_posts):
         st.write("`— 匿名推文區 —`")
         comment_key = f"comment_{idx}"
         if comment_key not in st.session_state:
-            st.session_state[comment_key] = ["👍 鄉民前來朝聖！"]
+            st.session_state[comment_key] = [] # 推文一開始也保持全空
             
         # 顯示該文章的推文
         for c in st.session_state[comment_key]:
