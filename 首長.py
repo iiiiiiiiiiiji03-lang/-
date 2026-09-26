@@ -5,15 +5,9 @@ import pandas as pd
 st.set_page_config(page_title="台灣縣市首長資訊圖", layout="wide")
 st.title("🗺️ 全台灣縣市首長資訊圖表")
 
-# 1. 建立縣市首長資料庫
+# 1. 建立純粹的縣市首長資料庫（移除所有網址）
 data = {
     "縣市": ["臺北市", "新北市", "桃園市", "臺中市", "臺南市", "高雄市", "基隆市", "新竹市", "新竹縣", "苗栗縣", "彰化縣", "南投縣", "雲林縣", "嘉義市", "嘉義縣", "屏東縣", "宜蘭縣", "花蓮縣", "臺東縣", "澎湖縣", "金門縣", "連江縣"],
-    "市政府官網": [
-        "https://gov.taipei", "https://ntpc.gov.tw", "https://tycg.gov.tw", "https://taichung.gov.tw", "https://tainan.gov.tw", "https://www.kcg.gov.tw/",
-        "https://klcg.gov.tw", "https://hccg.gov.tw", "https://hsinchu.gov.tw", "https://miaoli.gov.tw", "https://chcg.gov.tw", "https://nantou.gov.tw",
-        "https://yunlin.gov.tw", "https://chiayi.gov.tw", "https://cyhg.gov.tw", "https://pthg.gov.tw", "https://e-land.gov.tw", "https://hl.gov.tw",
-        "https://taitung.gov.tw", "https://penghu.gov.tw", "https://kinmen.gov.tw", "https://matsu.gov.tw"
-    ],
     "首長": ["蔣萬安", "侯友宜", "張善政", "盧秀燕", "黃偉哲", "陳其邁", "謝國樑", "高虹安", "楊文科", "鍾東錦", "王惠美", "許淑華", "張麗善", "黃敏惠", "翁章梁", "周春米", "林姿妙", "徐榛蔚", "饒慶鈴", "陳光復", "陳福海", "王忠銘"],
     "政黨": ["中國國民黨", "中國國民黨", "中國國民黨", "中國國民黨", "民主進步黨", "民主進步黨", "中國國民黨", "台灣民眾黨", "中國國民黨", "無黨籍", "中國國民黨", "中國國民黨", "中國國民黨", "中國國民黨", "民主進步黨", "民主進步黨", "中國國民黨", "中國國民黨", "中國國民黨", "民主進步黨", "無黨籍", "中國國民黨"]
 }
@@ -24,7 +18,7 @@ st.sidebar.header("篩選條件")
 selected_party = st.sidebar.multiselect("選擇政黨", options=df["政黨"].unique(), default=df["政黨"].unique())
 filtered_df = df[df["政黨"].isin(selected_party)]
 
-# 3. 畫面佈局
+# 3. 畫面佈局（平分兩欄：左邊圓餅圖，右邊名單表格）
 col1, col2 = st.columns(2)
 
 with col1:
@@ -36,14 +30,4 @@ with col1:
 
 with col2:
     st.subheader("首長詳細名單")
-    # 先單純呈現名單表格（乾淨漂亮，不夾帶網址）
-    display_df = filtered_df[["縣市", "首長", "政黨"]]
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
-    
-    # 在表格下方做出精美的官網點選按鈕區
-    st.write("---")
-    st.subheader("🔗 快速前往各縣市官網")
-    
-    # 讓按鈕排成漂亮的橫排排版
-    for index, row in filtered_df.iterrows():
-        st.link_button(f"🌐 前往{row['縣市']}", row["市政府官網"])
+    st.dataframe(filtered_df, use_container_width=True, hide_index=True)
