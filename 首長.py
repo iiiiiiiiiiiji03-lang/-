@@ -219,46 +219,17 @@ else:
           value=current_info["notice"],
       )
 
-      # 勾選框：更新狀態時是否同步推播至 Discord
-      sync_discord = st.checkbox("📢 同步將狀態變更發送至 Discord")
-
       submit_update = st.form_submit_button("更新設定", type="primary")
 
       if submit_update:
         status_manager.set_status(new_status, notice_input, ticker_input)
         st.success("網站設定已成功更新！")
-
-        # 若勾選同步推播
-        if sync_discord:
-          discord_token = st.session_state.get("dc_bot_token", "")
-          discord_channel = st.session_state.get("dc_channel_id", "")
-
-          if discord_token and discord_channel:
-            msg = f"**【系統狀態更新公告】**\n目前狀態：{new_status}\n"
-            if ticker_input:
-              msg += f"跑馬燈：{ticker_input}\n"
-            if notice_input:
-              msg += f"詳細說明：{notice_input}"
-
-            ok, res_msg = send_discord_message(
-                discord_token, discord_channel, msg
-            )
-            if ok:
-              st.success(f"Discord 同步推播成功：{res_msg}")
-            else:
-              st.error(f"Discord 同步推播失敗：{res_msg}")
-          else:
-            st.warning(
-                "請先至「🤖 Discord Bot 發言」分頁設定 Bot Token 與頻道 ID！"
-            )
-
         st.rerun()
 
   # --- Tab 2: Discord Bot 連動發言控制 ---
   with tab2:
     st.markdown("#### ⚙️ Discord 設定 (SESSION 暫存)")
 
-    # 允許管理員輸入 Bot Token 與 頻道 ID
     saved_token = st.secrets.get("DISCORD_BOT_TOKEN", "")
     dc_bot_token = st.text_input(
         "Discord Bot Token：",
@@ -274,7 +245,6 @@ else:
         help="在 Discord 開啟開發者模式後，右鍵點擊頻道名稱即可複製頻道 ID",
     )
 
-    # 將輸入寫入 Session State
     st.session_state["dc_bot_token"] = dc_bot_token
     st.session_state["dc_channel_id"] = dc_channel_id
 
