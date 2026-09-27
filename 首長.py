@@ -305,7 +305,7 @@ else:
     st.markdown("#### 🗑️ 刪除指定訊息")
     with st.form("discord_delete_form"):
       delete_msg_id = st.text_input(
-          "要刪除的訊息 ID (Message ID)：",
+          "要刪除的訊息 ID (Message ID)(只有機器人發的訊息才能刪除)：",
           placeholder="例如：1234567890123456789",
           help="在 Discord 該訊息上點選右鍵 ➔ 「複製訊息 ID」",
       )
