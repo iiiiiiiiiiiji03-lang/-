@@ -294,24 +294,24 @@ def render_tab_discord():
 
 
 # ==============================================================================
-# 【區塊 6】後台主流程 (登入控制與頁面進入點)
+# 【區塊 6】後台主流程 (未登入時僅顯示登入框，登入成功後才顯示管理員控制台)
 # ==============================================================================
-st.subheader("🔒 管理員控制台")
-
 if not st.session_state["logged_in"]:
-  with st.form("login_form"):
-    password_input = st.text_input("請輸入管理員密碼：", type="password")
-    if st.form_submit_button("登入後台"):
-      if check_password(password_input):
-        st.session_state["logged_in"] = True
-        st.success("登入成功！")
-        st.rerun()
-      else:
-        st.error("密碼錯誤，請再試一次。")
+  with st.expander("🔑 管理員登入入口"):
+    with st.form("login_form"):
+      password_input = st.text_input("請輸入密碼：", type="password")
+      if st.form_submit_button("登入"):
+        if check_password(password_input):
+          st.session_state["logged_in"] = True
+          st.success("登入成功！")
+          st.rerun()
+        else:
+          st.error("密碼錯誤，請再試一次。")
 else:
+  st.subheader("🔒 管理員控制台")
   st.info("🔓 您已成功登入管理後台。")
 
-  # 後台頁籤路由 (若刪除 Discord 功能，只需將這兩行改為 render_tab_status() 即可)
+  # 後台分頁選單
   tab1, tab2 = st.tabs(["📊 網站狀態與跑馬燈", "🤖 Discord Bot 管理"])
   with tab1:
     render_tab_status()
