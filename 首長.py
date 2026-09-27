@@ -10,7 +10,7 @@ st.set_page_config(
 
 
 # ==========================================
-# 0. Discord 訊息發送函式
+# 0. Discord API 互動函式（發送與刪除）
 # ==========================================
 def send_discord_message(bot_token, channel_id, message_text):
   """透過 Discord Bot API (REST API) 發送訊息至特定頻道"""
@@ -24,13 +24,39 @@ def send_discord_message(bot_token, channel_id, message_text):
   try:
     response = requests.post(url, json=payload, headers=headers, timeout=10)
     if response.status_code in [200, 201]:
-      return True, "訊息已成功發送至 Discord 頻道！"
+      res_json = response.json()
+      msg_id = res_json.get("id", "無紀錄")
+      return True, f"訊息已成功發送！ (訊息 ID: `{msg_id}`)"
     else:
       error_msg = response.json().get("message", "未知錯誤")
       return (
           False,
-          f"發送失敗 (HTTP {response.status_code}): {error_msg}。請檢查 Token 與頻道 ID 是否正確，以及 Bot 是否已加入該頻道並擁有發送訊息權限。",
+          f"發送失敗 (HTTP {response.status_code}): {error_msg}。請檢查 Token 與頻道 ID 是否正確。",
       )
+  except Exception as e:
+    return False, f"連線發生異常：{str(e)}"
+
+
+def delete_discord_message(bot_token, channel_id, message_id):
+  """透過 Discord Bot API 刪除指定頻道中的特定訊息 ID"""
+  url = (
+      f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id.strip()}"
+  )
+  headers = {
+      "Authorization": f"Bot {bot_token.strip()}",
+  }
+
+  try:
+    response = requests.delete(url, headers=headers, timeout=10)
+    if response.status_code == 204:
+      return True, f"訊息 ID `{message_id}` 已成功刪除！"
+    elif response.status_code == 404:
+      return False, "刪除失敗：找不到該訊息，請檢查訊息 ID 是否正確或訊息已被刪除。"
+    elif response.status_code == 403:
+      return False, "刪除失敗：Bot 缺少刪除訊息的權限（Manage Messages）。"
+    else:
+      error_msg = response.json().get("message", "未知錯誤")
+      return False, f"刪除失敗 (HTTP {response.status_code}): {error_msg}"
   except Exception as e:
     return False, f"連線發生異常：{str(e)}"
 
@@ -192,10 +218,10 @@ if not st.session_state["logged_in"]:
       else:
         st.error("密碼錯誤，請再試一次。")
 else:
-  st.info("🔓 您已成功登入，可以變更網站狀態或以 Discord Bot 身份發送訊息。")
+  st.info("🔓 您已成功登入，可以變更網站狀態或以 Discord Bot 身份發送/刪除訊息。")
 
-  # 分頁選單：1. 狀態控制 / 2. Discord Bot 連動發言
-  tab1, tab2 = st.tabs(["📊 網站狀態與跑馬燈", "🤖 Discord Bot 發言"])
+  # 分頁選單
+  tab1, tab2 = st.tabs(["📊 網站狀態與跑馬燈", "🤖 Discord Bot 管理"])
 
   # --- Tab 1: 網站狀態更新 ---
   with tab1:
@@ -226,9 +252,9 @@ else:
         st.success("網站設定已成功更新！")
         st.rerun()
 
-  # --- Tab 2: Discord Bot 連動發言控制 ---
+  # --- Tab 2: Discord Bot 連動發言與刪除控制 ---
   with tab2:
-    st.markdown("#### ⚙️ Discord 設定 (SESSION 暫存)")
+    st.markdown("#### ⚙️ Discord 連線設定")
 
     saved_token = st.secrets.get("DISCORD_BOT_TOKEN", "")
     dc_bot_token = st.text_input(
@@ -249,8 +275,9 @@ else:
     st.session_state["dc_channel_id"] = dc_channel_id
 
     st.markdown("---")
-    st.markdown("#### 💬 發送廣播訊息")
 
+    # 1. 發送廣播訊息區塊
+    st.markdown("#### 💬 發送廣播訊息")
     with st.form("discord_message_form"):
       dc_message = st.text_area(
           "發送至 Discord 頻道的訊息內容：",
@@ -266,6 +293,32 @@ else:
         else:
           success, msg = send_discord_message(
               dc_bot_token, dc_channel_id, dc_message
+          )
+          if success:
+            st.success(msg)
+          else:
+            st.error(msg)
+
+    st.markdown("---")
+
+    # 2. 刪除指定訊息區塊
+    st.markdown("#### 🗑️ 刪除指定訊息")
+    with st.form("discord_delete_form"):
+      delete_msg_id = st.text_input(
+          "要刪除的訊息 ID (Message ID)：",
+          placeholder="例如：1234567890123456789",
+          help="在 Discord 該訊息上點選右鍵 ➔ 「複製訊息 ID」",
+      )
+      delete_btn = st.form_submit_button("🗑️ 刪除該訊息")
+
+      if delete_btn:
+        if not dc_bot_token or not dc_channel_id:
+          st.error("請先填寫 Discord Bot Token 與 頻道 ID！")
+        elif not delete_msg_id.strip():
+          st.warning("請輸入欲刪除的訊息 ID！")
+        else:
+          success, msg = delete_discord_message(
+              dc_bot_token, dc_channel_id, delete_msg_id
           )
           if success:
             st.success(msg)
