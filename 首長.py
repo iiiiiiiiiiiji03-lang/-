@@ -252,7 +252,10 @@ def render_tab_discord():
         ok, msg = DiscordAPI.send_message(
             dc_bot_token, dc_channel_id, dc_message
         )
-        st.success(msg) if ok else st.error(msg)
+        if ok:
+          st.success(msg)
+        else:
+          st.error(msg)
 
   st.markdown("---")
 
@@ -271,7 +274,10 @@ def render_tab_discord():
         ok, msg = DiscordAPI.delete_message(
             dc_bot_token, dc_channel_id, delete_msg_id
         )
-        st.success(msg) if ok else st.error(msg)
+        if ok:
+          st.success(msg)
+        else:
+          st.error(msg)
 
 
 # ==============================================================================
