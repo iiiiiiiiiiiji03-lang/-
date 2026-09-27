@@ -8,6 +8,19 @@ st.set_page_config(
     page_title="人事部勞工運行狀態中心", page_icon="📊", layout="centered"
 )
 
+# ------------------------------------------------------------------------------
+# 隱藏 Streamlit 右上角選單 (Share, Star, GitHub, 選單) 與 頁尾
+# ------------------------------------------------------------------------------
+hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stAppHeader {display: none;}
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 
 # ==============================================================================
 # 【區塊 1】DISCORD API 模組 (若未來不需要 Discord 功能，可整塊刪除)
