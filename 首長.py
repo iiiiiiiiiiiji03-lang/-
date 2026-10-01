@@ -1,17 +1,16 @@
 import hashlib
 import os
-import threading
-import asyncio
 import requests
 import streamlit as st
-import discord
 
 # 設定網頁標題與圖示
 st.set_page_config(
     page_title="人事部勞工運行狀態中心", page_icon="📊", layout="centered"
 )
 
-# 隱藏 Streamlit選單與頁尾
+# ------------------------------------------------------------------------------
+# 隱藏 Streamlit 右上角選單 (Share, Star, GitHub, 選單) 與 頁尾
+# ------------------------------------------------------------------------------
 hide_streamlit_style = """
     <style>
     #MainMenu {visibility: hidden;}
@@ -24,12 +23,13 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 
 # ==============================================================================
-# 【區塊 1】DISCORD API 模組 (手動發送/刪除訊息)
+# 【區塊 1】DISCORD API 模組 (若未來不需要 Discord 功能，可整塊刪除)
 # ==============================================================================
 class DiscordAPI:
 
   @staticmethod
   def send_message(bot_token: str, channel_id: str, message_text: str):
+    """發送訊息至 Discord 頻道"""
     url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
     headers = {
         "Authorization": f"Bot {bot_token.strip()}",
@@ -49,6 +49,7 @@ class DiscordAPI:
 
   @staticmethod
   def delete_message(bot_token: str, channel_id: str, message_id: str):
+    """刪除指定 Discord 訊息"""
     url = f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id.strip()}"
     headers = {"Authorization": f"Bot {bot_token.strip()}"}
     try:
@@ -59,17 +60,14 @@ class DiscordAPI:
         return False, "刪除失敗：找不到該訊息或已被刪除。"
       elif response.status_code == 403:
         return False, "刪除失敗：Bot 缺少『管理訊息 (Manage Messages)』權限。"
-      try:
-        error_msg = response.json().get("message", "未知錯誤")
-      except Exception:
-        error_msg = response.text or "未知錯誤"
+      error_msg = response.json().get("message", "未知錯誤")
       return False, f"刪除失敗 (HTTP {response.status_code}): {error_msg}"
     except Exception as e:
       return False, f"連線異常：{str(e)}"
 
 
 # ==============================================================================
-# 【區塊 2】全域記憶體共享狀態與緩存 (使用 @st.cache_resource)
+# 【區塊 2】全域共享狀態管理 (快取核心)
 # ==============================================================================
 class StatusManagerV3:
 
@@ -80,11 +78,6 @@ class StatusManagerV3:
         "🎉 歡迎來到人事部勞工運行狀態中心！系統目前正常運作中。"
     )
     self.logs = []
-
-    # 記憶體緩存：敏感字與頻道 ID
-    self.forbidden_words = ["垃圾", "詐騙", "違規"]
-    self.monitored_channel_id = ""
-
     self.add_log("🟢 上線", "系統初始化")
 
   def set_status(self, new_status, notice="", ticker=""):
@@ -110,19 +103,6 @@ class StatusManagerV3:
   def get_logs(self):
     return self.logs
 
-  # 記憶體緩存讀寫方法
-  def set_forbidden_words(self, words_list: list):
-    self.forbidden_words = [w.strip() for w in words_list if w.strip()]
-
-  def get_forbidden_words(self):
-    return self.forbidden_words
-
-  def set_monitored_channel(self, channel_id: str):
-    self.monitored_channel_id = channel_id.strip()
-
-  def get_monitored_channel(self):
-    return self.monitored_channel_id
-
 
 @st.cache_resource
 def get_status_manager():
@@ -133,76 +113,11 @@ status_manager = get_status_manager()
 
 
 # ==============================================================================
-# 【區塊 3】實時 Discord 監控 Bot (背景執行緒運作，直接讀取記憶體緩存)
-# ==============================================================================
-class DiscordMonitorClient(discord.Client):
-
-  async def on_ready(self):
-    print(f"✅ 背景 Discord 監控機器人已啟動：{self.user}")
-
-  async def on_message(self, message):
-    if message.author.bot:
-      return
-
-    # 直接從記憶體緩存讀取最新設定
-    target_channel_id = status_manager.get_monitored_channel()
-    forbidden_words = status_manager.get_forbidden_words()
-
-    if target_channel_id and str(message.channel.id) == target_channel_id:
-      for word in forbidden_words:
-        if word and word in message.content:
-          try:
-            await message.delete()
-          except Exception as e:
-            print(f"無法刪除訊息: {e}")
-
-          warning_msg = (
-              f"⚠️ {message.author.mention} **【違規發言警告】**\n"
-              f"偵測到您的發言包含禁止字詞（`{word}`），訊息已被自動刪除！"
-          )
-          await message.channel.send(warning_msg)
-          break
-
-
-def run_bot_in_thread(token: str):
-  """在背景 Thread 中跑 asyncio event loop"""
-  loop = asyncio.new_event_loop()
-  asyncio.set_event_loop(loop)
-
-  intents = discord.Intents.default()
-  intents.message_content = True
-
-  client = DiscordMonitorClient(intents=intents)
-  try:
-    loop.run_until_complete(client.start(token))
-  except Exception as e:
-    print(f"Discord Bot 背景運行異常: {e}")
-
-
-def start_discord_bot_thread(token: str):
-  if not token:
-    return False, "Bot Token 不能為空！"
-
-  # 避免重複啟動多個 Bot 執行緒
-  if "bot_thread_started" not in st.session_state:
-    st.session_state["bot_thread_started"] = False
-
-  if not st.session_state["bot_thread_started"]:
-    t = threading.Thread(
-        target=run_bot_in_thread, args=(token,), daemon=True
-    )
-    t.start()
-    st.session_state["bot_thread_started"] = True
-    return True, "背景監控機器人已成功啟動！"
-  return True, "背景監控機器人已在運行中。"
-
-
-# ==============================================================================
-# 【區塊 4】安全驗證與登入狀態
+# 【區塊 3】安全驗證與登入狀態
 # ==============================================================================
 def check_password(password_input):
-  secret_password = st.secrets.get("ADMIN_PASSWORD") or os.environ.get(
-      "ADMIN_PASSWORD", "admin"
+  secret_password = st.secrets.get(
+      "ADMIN_PASSWORD", os.environ.get("ADMIN_PASSWORD", "admin")
   )
   hash_input = hashlib.sha256(password_input.encode()).hexdigest()
   hash_secret = hashlib.sha256(secret_password.encode()).hexdigest()
@@ -214,7 +129,7 @@ if "logged_in" not in st.session_state:
 
 
 # ==============================================================================
-# 【區塊 5】前台展示區
+# 【區塊 4】前台展示區 (一般使用者看到的畫面)
 # ==============================================================================
 st.title("🌐 BOT運行狀態")
 
@@ -228,6 +143,7 @@ def render_status_display():
       info["ticker"],
   )
 
+  # 跑馬燈元件
   if ticker:
     st.markdown(
         f"""
@@ -282,7 +198,7 @@ st.divider()
 
 
 # ==============================================================================
-# 【區塊 6】後台介面分頁元件
+# 【區塊 5】後台介面分頁元件 (UI 組件化，刪除功能時只需調整此處)
 # ==============================================================================
 def render_tab_status():
   """分頁 1：網站狀態與跑馬燈管理"""
@@ -313,7 +229,7 @@ def render_tab_status():
 
 
 def render_tab_discord():
-  """分頁 2：Discord Bot 廣播與刪除"""
+  """分頁 2：Discord Bot 訊息管理 (若不需此功能，刪除此函式即可)"""
   st.markdown("#### ⚙️ Discord 連線設定")
 
   saved_token = st.secrets.get("DISCORD_BOT_TOKEN", "")
@@ -323,16 +239,18 @@ def render_tab_discord():
       type="password",
   )
   dc_channel_id = st.text_input(
-      "預設頻道 ID (Channel ID)：",
+      "目標頻道 ID (Channel ID)：",
       value=st.session_state.get("dc_channel_id", ""),
       placeholder="例如：123456789012345678",
   )
 
+  # 保持 Session 狀態
   st.session_state["dc_bot_token"] = dc_bot_token
   st.session_state["dc_channel_id"] = dc_channel_id
 
   st.markdown("---")
 
+  # --- 子功能 A：發送訊息 ---
   st.markdown("#### 💬 發送廣播訊息")
   with st.form("discord_message_form"):
     dc_message = st.text_area(
@@ -354,6 +272,7 @@ def render_tab_discord():
 
   st.markdown("---")
 
+  # --- 子功能 B：刪除訊息 ---
   st.markdown("#### 🗑️ 刪除指定訊息")
   with st.form("discord_delete_form"):
     delete_msg_id = st.text_input(
@@ -374,51 +293,8 @@ def render_tab_discord():
           st.error(msg)
 
 
-def render_tab_moderation():
-  """分頁 3：禁止字詞與受監控頻道設定（純緩存，無文字檔）"""
-  st.markdown("#### 🛡️ Discord 頻道敏感詞監控設定")
-  st.info(
-      "💡 設定會直接存放在**記憶體緩存**中，完全不需要建立任何外部檔案。"
-  )
-
-  current_monitored_channel = status_manager.get_monitored_channel()
-  current_words_str = ", ".join(status_manager.get_forbidden_words())
-
-  with st.form("moderation_config_form"):
-    monitored_channel_input = st.text_input(
-        "受監控頻道 ID (Monitored Channel ID)：",
-        value=current_monitored_channel,
-        placeholder="例如：123456789012345678",
-    )
-    words_input = st.text_area(
-        "禁止字詞庫（請用英文逗點 `,` 分隔）：",
-        value=current_words_str,
-        help="例如：垃圾, 詐騙, 廣告, 違規文字",
-    )
-
-    if st.form_submit_button("💾 儲存並更新緩存", type="primary"):
-      words_list = [w.strip() for w in words_input.split(",") if w.strip()]
-      status_manager.set_forbidden_words(words_list)
-      status_manager.set_monitored_channel(monitored_channel_input)
-      st.success("✅ 設定已成功更新至記憶體緩存！")
-
-  st.markdown("---")
-  st.markdown("#### 🚀 啟動背景實時監控 Bot")
-
-  bot_token = st.session_state.get("dc_bot_token", "")
-  if st.button("▶️ 啟動背景監控機器人"):
-    if not bot_token:
-      st.error("請先至『🤖 Discord Bot 管理』頁籤填寫 Bot Token！")
-    else:
-      ok, msg = start_discord_bot_thread(bot_token)
-      if ok:
-        st.success(f"✅ {msg}")
-      else:
-        st.error(f"❌ {msg}")
-
-
 # ==============================================================================
-# 【區塊 7】後台主流程 (3個頁籤)
+# 【區塊 6】後台主流程 (登入控制與頁面進入點)
 # ==============================================================================
 st.subheader("🔒 管理員控制台")
 
@@ -435,18 +311,14 @@ if not st.session_state["logged_in"]:
 else:
   st.info("🔓 您已成功登入管理後台。")
 
-  tab1, tab2, tab3 = st.tabs([
-      "📊 網站狀態與跑馬燈",
-      "🤖 Discord Bot 管理",
-      "🛡️ 敏感詞與頻道監控",
-  ])
+  # 後台頁籤路由 (若刪除 Discord 功能，只需將這兩行改為 render_tab_status() 即可)
+  tab1, tab2 = st.tabs(["📊 網站狀態與跑馬燈", "🤖 Discord Bot 管理"])
   with tab1:
     render_tab_status()
   with tab2:
     render_tab_discord()
-  with tab3:
-    render_tab_moderation()
 
+  # 底部歷史紀錄與登出按鈕
   st.markdown("---")
   with st.expander("📜 查看狀態變更歷史紀錄"):
     st.table(status_manager.get_logs())
