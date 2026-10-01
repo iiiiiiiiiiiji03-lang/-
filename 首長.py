@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 import requests
 import streamlit as st
@@ -21,9 +22,11 @@ hide_streamlit_style = """
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
+CONFIG_FILE = "config.json"
+
 
 # ==============================================================================
-# 【區塊 1】DISCORD API 模組 (擴充敏感詞警報與訊息處理)
+# 【區塊 1】DISCORD API 模組
 # ==============================================================================
 class DiscordAPI:
 
@@ -68,22 +71,9 @@ class DiscordAPI:
     except Exception as e:
       return False, f"連線異常：{str(e)}"
 
-  @staticmethod
-  def send_warning_alert(
-      bot_token: str, channel_id: str, user_name: str, keyword: str
-  ):
-    """當觸發敏感字時發送警告通知"""
-    alert_text = (
-        f"⚠️ **【違規發言警告通知】**\n"
-        f"👤 **使用者**：`{user_name}`\n"
-        f"🚫 **偵測到禁止字詞**：`{keyword}`\n"
-        f"📢 請遵守頻道發言規範，相關訊息已被記錄與處置。"
-    )
-    return DiscordAPI.send_message(bot_token, channel_id, alert_text)
-
 
 # ==============================================================================
-# 【區塊 2】全域共享狀態管理 (加入敏感字詞庫與頻道設定)
+# 【區塊 2】全域共享狀態與設定檔管理
 # ==============================================================================
 class StatusManagerV3:
 
@@ -94,12 +84,37 @@ class StatusManagerV3:
         "🎉 歡迎來到人事部勞工運行狀態中心！系統目前正常運作中。"
     )
     self.logs = []
+    self.forbidden_words = ["垃圾", "詐騙", "違規"]
+    self.monitored_channel_id = ""
 
-    # 新增：敏感字與監控頻道管理
-    self.forbidden_words = ["垃圾", "詐騙", "洗版", "違規"]  # 預設敏感詞
-    self.monitored_channel_id = ""  # 預設監控頻道 ID
-
+    # 載入持久化設定
+    self.load_config()
     self.add_log("🟢 上線", "系統初始化")
+
+  def load_config(self):
+    if os.path.exists(CONFIG_FILE):
+      try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+          data = json.load(f)
+          self.forbidden_words = data.get(
+              "forbidden_words", self.forbidden_words
+          )
+          self.monitored_channel_id = data.get(
+              "monitored_channel_id", self.monitored_channel_id
+          )
+      except Exception as e:
+        print(f"載入設定檔失敗: {e}")
+
+  def save_config(self):
+    data = {
+        "forbidden_words": self.forbidden_words,
+        "monitored_channel_id": self.monitored_channel_id,
+    }
+    try:
+      with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+      print(f"儲存設定檔失敗: {e}")
 
   def set_status(self, new_status, notice="", ticker=""):
     self.current_status = new_status
@@ -124,27 +139,19 @@ class StatusManagerV3:
   def get_logs(self):
     return self.logs
 
-  # --- 敏感字詞管理 API ---
   def set_forbidden_words(self, words_list: list):
-    self.forbidden_words = [
-        w.strip() for w in words_list if w.strip()
-    ]  # 清除空白項
+    self.forbidden_words = [w.strip() for w in words_list if w.strip()]
+    self.save_config()
 
   def get_forbidden_words(self):
     return self.forbidden_words
 
   def set_monitored_channel(self, channel_id: str):
     self.monitored_channel_id = channel_id.strip()
+    self.save_config()
 
   def get_monitored_channel(self):
     return self.monitored_channel_id
-
-  def check_text_for_forbidden_words(self, text: str):
-    """檢查文字中是否包含敏感字"""
-    for word in self.forbidden_words:
-      if word in text:
-        return True, word
-    return False, None
 
 
 @st.cache_resource
@@ -172,7 +179,7 @@ if "logged_in" not in st.session_state:
 
 
 # ==============================================================================
-# 【區塊 4】前台展示區 (一般使用者看到的畫面)
+# 【區塊 4】前台展示區
 # ==============================================================================
 st.title("🌐 BOT運行狀態")
 
@@ -186,7 +193,6 @@ def render_status_display():
       info["ticker"],
   )
 
-  # 跑馬燈元件
   if ticker:
     st.markdown(
         f"""
@@ -272,7 +278,7 @@ def render_tab_status():
 
 
 def render_tab_discord():
-  """分頁 2：Discord Bot 訊息管理"""
+  """分頁 2：Discord Bot 訊息廣播與刪除"""
   st.markdown("#### ⚙️ Discord 連線設定")
 
   saved_token = st.secrets.get("DISCORD_BOT_TOKEN", "")
@@ -292,7 +298,6 @@ def render_tab_discord():
 
   st.markdown("---")
 
-  # --- 子功能 A：發送訊息 ---
   st.markdown("#### 💬 發送廣播訊息")
   with st.form("discord_message_form"):
     dc_message = st.text_area(
@@ -314,7 +319,6 @@ def render_tab_discord():
 
   st.markdown("---")
 
-  # --- 子功能 B：刪除訊息 ---
   st.markdown("#### 🗑️ 刪除指定訊息")
   with st.form("discord_delete_form"):
     delete_msg_id = st.text_input(
@@ -336,18 +340,19 @@ def render_tab_discord():
 
 
 def render_tab_moderation():
-  """分頁 3：新功能 - 特定頻道敏感詞監控與自動警告設定"""
-  st.markdown("#### 🛡️ 敏感字詞與監控頻道設定")
+  """分頁 3：禁止字詞與受監控頻道設定」"""
+  st.markdown("#### 🛡️ Discord 頻道敏感詞監控設定")
+  st.info(
+      "💡 在此說設定的『受監控頻道』與『禁止字詞』將會同步儲存至設定檔，供背景 Bot"
+      " 進行實時監控。"
+  )
 
-  dc_bot_token = st.session_state.get("dc_bot_token", "")
-
-  # 1. 監控頻道與敏感詞輸入
   current_monitored_channel = status_manager.get_monitored_channel()
   current_words_str = ", ".join(status_manager.get_forbidden_words())
 
   with st.form("moderation_config_form"):
     monitored_channel_input = st.text_input(
-        "受監控頻道 ID (Channel ID)：",
+        "受監控頻道 ID (Monitored Channel ID)：",
         value=current_monitored_channel,
         placeholder="例如：123456789012345678",
     )
@@ -357,58 +362,15 @@ def render_tab_moderation():
         help="例如：垃圾, 詐騙, 廣告, 違規文字",
     )
 
-    if st.form_submit_button("💾 儲存監控規則", type="primary"):
+    if st.form_submit_button("💾 儲存監控設定", type="primary"):
       words_list = [w.strip() for w in words_input.split(",") if w.strip()]
       status_manager.set_forbidden_words(words_list)
       status_manager.set_monitored_channel(monitored_channel_input)
-      st.success("✅ 敏感字詞規則與監控頻道已成功更新！")
-
-  st.markdown("---")
-
-  # 2. 敏感字測試與警報觸發模擬器
-  st.markdown("#### 🧪 測試發言敏感度與自動警告")
-  st.caption(
-      "此處可模擬當使用者在監控頻道中發言時，系統過濾並由機器人自動發送警告通知的流程。"
-  )
-
-  with st.form("test_moderation_form"):
-    test_user = st.text_input(
-        "模擬使用者名稱：", value="測試使用者#1234"
-    )
-    test_message = st.text_area(
-        "模擬發言語句：", placeholder="輸入要測試的對話內容..."
-    )
-
-    if st.form_submit_button("🔍 模擬發言與偵測"):
-      target_channel = status_manager.get_monitored_channel()
-      if not dc_bot_token or not target_channel:
-        st.error(
-            "請確認已設定『Bot Token』與『受監控頻道 ID』！"
-        )
-      elif not test_message.strip():
-        st.warning("請輸入測試發言內容！")
-      else:
-        # 進行敏感字判定
-        is_forbidden, word_found = (
-            status_manager.check_text_for_forbidden_words(test_message)
-        )
-        if is_forbidden:
-          st.error(f"🚨 偵測到違規敏感字：`{word_found}`！正在發送警告至 Discord...")
-          ok, msg = DiscordAPI.send_warning_alert(
-              dc_bot_token, target_channel, test_user, word_found
-          )
-          if ok:
-            st.success(
-                f"✅ 機器人已成功在頻道 `{target_channel}` 發遞警告通知！"
-            )
-          else:
-            st.error(f"❌ 警告發送失敗：{msg}")
-        else:
-          st.success("🟢 訊息安全，未包含任何禁止字詞。")
+      st.success("✅ 設定已成功儲存至 config.json！背景 Bot 將於下次檢測時自動載入。")
 
 
 # ==============================================================================
-# 【區塊 6】後台主流程 (登入控制與頁面進入點)
+# 【區塊 6】後台主流程 (頁籤路由)
 # ==============================================================================
 st.subheader("🔒 管理員控制台")
 
@@ -425,11 +387,11 @@ if not st.session_state["logged_in"]:
 else:
   st.info("🔓 您已成功登入管理後台。")
 
-  # 後台頁籤路由 (擴充第三個頁籤：🛡️ 敏感詞與頻道監控)
+  # 分頁定義
   tab1, tab2, tab3 = st.tabs([
       "📊 網站狀態與跑馬燈",
       "🤖 Discord Bot 管理",
-      "🛡️️ 敏感詞與頻道監控",
+      "🛡️ 敏感詞與頻道監控",
   ])
   with tab1:
     render_tab_status()
@@ -438,7 +400,6 @@ else:
   with tab3:
     render_tab_moderation()
 
-  # 底部歷史紀錄與登出按鈕
   st.markdown("---")
   with st.expander("📜 查看狀態變更歷史紀錄"):
     st.table(status_manager.get_logs())
